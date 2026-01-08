@@ -1118,14 +1118,20 @@ func main() {
 	var staticPath string
 	var indexPath string
 	var mediaDirFlag string
+	var hostFlag string
+	var portFlag string
 
 	flag.StringVar(&staticPath, "static", "dist", "Path to static files directory")
 	flag.StringVar(&indexPath, "index", "index.html", "Path to index.html")
 	flag.StringVar(&mediaDirFlag, "media", "media", "Path to media directory")
+	flag.StringVar(&hostFlag, "host", "127.0.0.1", "Host to bind")
+	flag.StringVar(&portFlag, "port", "8080", "Port to listen")
 	flag.Parse()
 
 	mediaDir = mediaDirFlag
 	staticDir = staticPath
+	host := hostFlag
+	port := portFlag
 
 	// Initialize fileSystem
 	if _, err := os.Stat(staticPath); err == nil {
@@ -1172,7 +1178,6 @@ func main() {
 	spa := spaHandler{fileSystem: fileSystem, indexPath: indexPath}
 	http.Handle("/", spa)
 
-	port := "8080"
-	log.Printf("Serving SPA on http://localhost:%s ...", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Printf("Serving SPA on http://%s:%s ...", host, port)
+	log.Fatal(http.ListenAndServe(host+":"+port, nil))
 }
