@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -110,6 +111,8 @@ var jsonUsersList []map[string]interface{}
 var jsonPosts []map[string]interface{}
 var jsonGoods []map[string]interface{}
 
+var avatar_dataurl = "data:image/png;base64,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"
+
 func loadJsonData() {
 	// Load users
 	usersBytes, err := fs.ReadFile(fileSystem, "data/users.json")
@@ -121,7 +124,20 @@ func loadJsonData() {
 			log.Printf("Failed to parse users.json: %v", err)
 		} else {
 			jsonUsers = make(map[string]interface{})
-			jsonUsersList = users // Store the list
+			for i := range users {
+				u := users[i]
+				keys := []string{"avatar_thumb", "avatar_medium", "avatar_large", "avatar_168x168", "avatar_larger", "avatar_300x300"}
+				for _, k := range keys {
+					if m, ok := u[k].(map[string]interface{}); ok {
+						m["url_list"] = []string{avatar_dataurl}
+						u[k] = m
+					} else {
+						u[k] = map[string]interface{}{"url_list": []string{avatar_dataurl}}
+					}
+				}
+				users[i] = u
+			}
+			jsonUsersList = users
 			for _, u := range users {
 				if uid, ok := u["uid"].(string); ok {
 					jsonUsers[uid] = u
@@ -243,6 +259,12 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 			return nil
 		}
 
+		info, _ := d.Info()
+		var ct int64
+		if info != nil {
+			ct = info.ModTime().Unix()
+		}
+
 		// Use filename as description, remove extension
 		desc := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 
@@ -262,7 +284,7 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 			"type":        "recommend-video",
 			"aweme_id":    id,
 			"desc":        desc,
-			"create_time": 1691665927,
+			"create_time": ct,
 			"music": map[string]interface{}{
 				"id":     123456789,
 				"title":  "Original Sound",
@@ -299,19 +321,19 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 				"nickname":  "Local User",
 				"unique_id": "local_user_id",
 				"avatar_thumb": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{avatar_dataurl},
 				},
 				"avatar_medium": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{avatar_dataurl},
 				},
 				"avatar_large": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{avatar_dataurl},
 				},
 				"avatar_168x168": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{avatar_dataurl},
 				},
 				"avatar_larger": map[string]interface{}{
-					"url_list": []string{""},
+					"url_list": []string{avatar_dataurl},
 				},
 				"cover_url": []map[string]interface{}{
 					{
@@ -357,6 +379,28 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 		}
 		return nil, err
 	}
+
+	sort.Slice(videos, func(i, j int) bool {
+		vi := int64(0)
+		vj := int64(0)
+		switch x := videos[i]["create_time"].(type) {
+		case int64:
+			vi = x
+		case int:
+			vi = int64(x)
+		case float64:
+			vi = int64(x)
+		}
+		switch y := videos[j]["create_time"].(type) {
+		case int64:
+			vj = y
+		case int:
+			vj = int64(y)
+		case float64:
+			vj = int64(y)
+		}
+		return vi > vj
+	})
 
 	return videos, nil
 }
@@ -976,6 +1020,100 @@ func shopRecommendedHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(finalResp)
 }
 
+func videoIndexedHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == "OPTIONS" {
+		return
+	}
+	videos, err := scanMediaVideos()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp := ResponseData{
+		Total: len(videos),
+		List:  videos,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	finalResp := map[string]interface{}{
+		"code": 200,
+		"data": resp,
+		"msg":  "",
+	}
+	json.NewEncoder(w).Encode(finalResp)
+}
+
+func scanMediaVideoFiles() ([]map[string]interface{}, error) {
+	items := make([]map[string]interface{}, 0)
+	err := filepath.WalkDir(mediaDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) && path == mediaDir {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		lower := strings.ToLower(name)
+		if !strings.HasSuffix(lower, ".mp4") && !strings.HasSuffix(lower, ".webm") && !strings.HasSuffix(lower, ".ogg") {
+			return nil
+		}
+		rel, err := filepath.Rel(mediaDir, path)
+		if err != nil {
+			return nil
+		}
+		parts := strings.Split(rel, string(os.PathSeparator))
+		for i := range parts {
+			parts[i] = url.PathEscape(parts[i])
+		}
+		urlPath := "/media/" + strings.Join(parts, "/")
+		info, _ := d.Info()
+		item := map[string]interface{}{
+			"url":      urlPath,
+			"filename": name,
+		}
+		if info != nil {
+			item["size"] = info.Size()
+			item["mod_time"] = info.ModTime().Unix()
+		}
+		items = append(items, item)
+		return nil
+	})
+	if err != nil {
+		if os.IsNotExist(err) {
+			return items, nil
+		}
+		return nil, err
+	}
+	return items, nil
+}
+
+func videoListHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == "OPTIONS" {
+		return
+	}
+	items, err := scanMediaVideoFiles()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp := ResponseData{
+		Total: len(items),
+		List:  items,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	finalResp := map[string]interface{}{
+		"code": 200,
+		"data": resp,
+		"msg":  "",
+	}
+	json.NewEncoder(w).Encode(finalResp)
+}
 func main() {
 	var staticPath string
 	var indexPath string
@@ -1017,6 +1155,7 @@ func main() {
 	http.HandleFunc("/video/like", videoLikeHandler)
 	http.HandleFunc("/video/my", videoMyHandler)
 	http.HandleFunc("/video/history", videoHistoryHandler)
+	http.HandleFunc("/api/video/list", videoListHandler)
 	
 	http.HandleFunc("/user/panel", userPanelHandler)
 	http.HandleFunc("/user/collect", userCollectHandler)

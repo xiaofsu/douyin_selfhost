@@ -39,7 +39,7 @@ jobs:
           cd frontend
           sed -i '/\/\/放到最后才可以使用pinia/d' src/main.ts
           sed -i '/startMock()/d' src/main.ts
-          sed -i "s|baseUrl: 'https://dy.ttentau.top/imgs/'|baseUrl: 'http://127.0.0.1:8080/'|g" src/config/index.ts
+          sed -i "s|baseUrl: 'https://dy.ttentau.top/imgs/'|baseUrl: '/'|g" src/config/index.ts
           sed -i '/const mock = new MockAdapter(axiosInstance)/d' src/mock/index.ts
           pnpm install
           pnpm build
@@ -67,4 +67,3 @@ jobs:
             release_dist/*.tar.gz
             release_dist/*.zip
             release_dist/*checksums.txt
-

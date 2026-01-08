@@ -14,8 +14,8 @@ RUN git clone https://github.com/zyronon/douyin.git .
 RUN sed -i '/\/\/放到最后才可以使用pinia/d' src/main.ts && \
     sed -i '/startMock()/d' src/main.ts
 
-# Modify src/config/index.ts to point to local backend (aligned with release.yml)
-RUN sed -i "s|baseUrl: 'https://dy.ttentau.top/imgs/'|baseUrl: 'http://127.0.0.1:8080/'|g" src/config/index.ts
+# Modify src/config/index.ts to use same-origin relative base URL
+RUN sed -i "s|baseUrl: 'https://dy.ttentau.top/imgs/'|baseUrl: '/'|g" src/config/index.ts
 
 # Modify src/mock/index.ts to remove mock adapter (aligned with release.yml)
 RUN sed -i '/const mock = new MockAdapter(axiosInstance)/d' src/mock/index.ts

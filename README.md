@@ -82,7 +82,7 @@ cd douyin
    将 `baseUrl` 修改为本地后端地址：
    ```typescript
    // 原代码: baseUrl: 'https://dy.ttentau.top/imgs/'
-   baseUrl: 'http://localhost:8080/'
+   baseUrl: '/'
    ```
 
 3. **修改 `src/mock/index.ts`**
@@ -108,7 +108,6 @@ pnpm build
 ### 3. 运行服务器
 
 ```bash
-# 默认假设视频文件在当前目录下的 'media' 文件夹中
 go run main.go --static ./dist --media /path/to/your/videos
 ```
 
