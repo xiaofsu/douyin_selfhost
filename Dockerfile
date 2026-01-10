@@ -72,4 +72,4 @@ VOLUME /app/media
 EXPOSE 8080
 
 # Run the application
-CMD ["./douyin", "--static", "./dist", "--media", "./media"]
+CMD ["./douyin", "--host", "0.0.0.0", "--static", "./dist", "--media", "./media"]

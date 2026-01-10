@@ -37,6 +37,34 @@
 
 ## Docker 部署
 
+你可以使用提供的脚本快速启动，或者手动运行 Docker 命令。
+
+### 方式一：使用启动脚本（推荐）
+
+项目根目录提供了便捷的启动脚本，会自动挂载 `Downloads` 目录（如果存在）或本地 `media` 目录。
+
+**Linux / macOS:**
+
+```bash
+# 默认直接使用 GHCR 镜像运行
+./start.sh
+
+# 如果需要构建本地镜像并运行
+./start.sh -build
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# 默认直接使用 GHCR 镜像运行
+.\start.ps1
+
+# 如果需要构建本地镜像并运行
+.\start.ps1 -Build
+```
+
+### 方式二：手动运行
+
 提供的 `Dockerfile` 会处理前端和后端的构建。
 
 1. **拉取镜像**
