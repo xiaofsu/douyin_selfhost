@@ -11,12 +11,15 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 type spaHandler struct {
@@ -96,10 +99,27 @@ type ResponseData struct {
 	List  interface{} `json:"list"`
 }
 
+type CollectBucket struct {
+	Total int                      `json:"total"`
+	List  []map[string]interface{} `json:"list"`
+}
+
+type CollectPayloadData struct {
+	Video CollectBucket `json:"video"`
+	Music CollectBucket `json:"music"`
+}
+
+type CollectPayload struct {
+	Code int                `json:"code"`
+	Data CollectPayloadData `json:"data"`
+	Msg  string             `json:"msg"`
+}
+
 
 // Global variable to hold loaded JSON data
 var mediaDir string
 var staticDir string
+var collectFilePath = filepath.Join("data", "user_collect.json")
 //go:embed dist/*
 var embedDist embed.FS
 var fileSystem fs.FS
@@ -110,6 +130,7 @@ var jsonUsers map[string]interface{}
 var jsonUsersList []map[string]interface{}
 var jsonPosts []map[string]interface{}
 var jsonGoods []map[string]interface{}
+var collectFileMu sync.Mutex
 
 var avatar_dataurl = "data:image/png;base64,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"
 
@@ -405,6 +426,330 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 	return videos, nil
 }
 
+func shuffleVideos(videos []map[string]interface{}, shuffle func(int, func(int, int))) []map[string]interface{} {
+	shuffled := append([]map[string]interface{}(nil), videos...)
+	if shuffle == nil {
+		return shuffled
+	}
+
+	shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+
+	return shuffled
+}
+
+func cloneJSONObject(src map[string]interface{}) map[string]interface{} {
+	if src == nil {
+		return map[string]interface{}{}
+	}
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		return src
+	}
+
+	var cloned map[string]interface{}
+	if err := json.Unmarshal(data, &cloned); err != nil {
+		return src
+	}
+	return cloned
+}
+
+func cloneJSONObjectSlice(src []map[string]interface{}) []map[string]interface{} {
+	if len(src) == 0 {
+		return []map[string]interface{}{}
+	}
+
+	cloned := make([]map[string]interface{}, 0, len(src))
+	for _, item := range src {
+		cloned = append(cloned, cloneJSONObject(item))
+	}
+	return cloned
+}
+
+func stringValue(v interface{}) string {
+	switch value := v.(type) {
+	case string:
+		return value
+	case float64:
+		return fmt.Sprintf("%.0f", value)
+	case float32:
+		return fmt.Sprintf("%.0f", value)
+	case int:
+		return fmt.Sprintf("%d", value)
+	case int64:
+		return fmt.Sprintf("%d", value)
+	case int32:
+		return fmt.Sprintf("%d", value)
+	default:
+		return ""
+	}
+}
+
+func defaultCollectPayload() CollectPayload {
+	payload := CollectPayload{}
+	normalizeCollectPayload(&payload)
+	return payload
+}
+
+func normalizeCollectPayload(payload *CollectPayload) {
+	payload.Code = 200
+	payload.Msg = ""
+	if payload.Data.Video.List == nil {
+		payload.Data.Video.List = []map[string]interface{}{}
+	}
+	payload.Data.Video.Total = len(payload.Data.Video.List)
+	payload.Data.Music.List = cloneJSONObjectSlice(jsonMusic)
+	payload.Data.Music.Total = len(payload.Data.Music.List)
+}
+
+func upsertCollectedVideo(payload *CollectPayload, video map[string]interface{}) error {
+	normalizeCollectPayload(payload)
+
+	awemeID := stringValue(video["aweme_id"])
+	if awemeID == "" {
+		return fmt.Errorf("missing aweme_id")
+	}
+
+	videoCopy := cloneJSONObject(video)
+	videoCopy["aweme_id"] = awemeID
+
+	list := make([]map[string]interface{}, 0, len(payload.Data.Video.List)+1)
+	list = append(list, videoCopy)
+	for _, item := range payload.Data.Video.List {
+		if stringValue(item["aweme_id"]) == awemeID {
+			continue
+		}
+		list = append(list, item)
+	}
+	payload.Data.Video.List = list
+	payload.Data.Video.Total = len(list)
+	return nil
+}
+
+func removeCollectedVideo(payload *CollectPayload, awemeID string) {
+	normalizeCollectPayload(payload)
+	if awemeID == "" {
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(payload.Data.Video.List))
+	for _, item := range payload.Data.Video.List {
+		if stringValue(item["aweme_id"]) == awemeID {
+			continue
+		}
+		list = append(list, item)
+	}
+	payload.Data.Video.List = list
+	payload.Data.Video.Total = len(list)
+}
+
+func saveCollectPayloadLocked(payload CollectPayload) error {
+	normalizeCollectPayload(&payload)
+
+	if err := os.MkdirAll(filepath.Dir(collectFilePath), 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tempPath := collectFilePath + ".tmp"
+	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, collectFilePath)
+}
+
+func loadCollectPayloadLocked() (CollectPayload, error) {
+	payload := defaultCollectPayload()
+
+	data, err := os.ReadFile(collectFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := saveCollectPayloadLocked(payload); err != nil {
+				return CollectPayload{}, err
+			}
+			return payload, nil
+		}
+		return CollectPayload{}, err
+	}
+
+	if len(bytes.TrimSpace(data)) == 0 {
+		if err := saveCollectPayloadLocked(payload); err != nil {
+			return CollectPayload{}, err
+		}
+		return payload, nil
+	}
+
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return CollectPayload{}, err
+	}
+
+	normalizeCollectPayload(&payload)
+	if err := saveCollectPayloadLocked(payload); err != nil {
+		return CollectPayload{}, err
+	}
+	return payload, nil
+}
+
+func loadCollectPayload() (CollectPayload, error) {
+	collectFileMu.Lock()
+	defer collectFileMu.Unlock()
+	return loadCollectPayloadLocked()
+}
+
+func normalizeLikeAction(action string) string {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "like", "digg", "collect", "favorite":
+		return "like"
+	case "unlike", "undigg", "uncollect", "cancel", "remove", "delete":
+		return "unlike"
+	default:
+		return ""
+	}
+}
+
+func extractVideoFromLikePayload(payload map[string]interface{}, action string) map[string]interface{} {
+	if rawVideo, ok := payload["video"].(map[string]interface{}); ok {
+		return cloneJSONObject(rawVideo)
+	}
+	if action != "like" || len(payload) == 0 {
+		return nil
+	}
+	if _, ok := payload["aweme_id"]; !ok {
+		return nil
+	}
+
+	video := make(map[string]interface{}, len(payload))
+	for key, value := range payload {
+		switch key {
+		case "action", "liked", "type":
+			continue
+		default:
+			video[key] = value
+		}
+	}
+	if len(video) <= 1 {
+		return nil
+	}
+	return cloneJSONObject(video)
+}
+
+func parseVideoLikeMutation(r *http.Request) (string, string, map[string]interface{}, error) {
+	var payload map[string]interface{}
+	if r.Body != nil {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			return "", "", nil, err
+		}
+		if len(bytes.TrimSpace(body)) > 0 {
+			if err := json.Unmarshal(body, &payload); err != nil {
+				return "", "", nil, fmt.Errorf("invalid json body: %w", err)
+			}
+		}
+	}
+
+	action := normalizeLikeAction(r.URL.Query().Get("action"))
+	if action == "" {
+		action = normalizeLikeAction(stringValue(payload["action"]))
+	}
+	if action == "" {
+		action = normalizeLikeAction(stringValue(payload["type"]))
+	}
+	if action == "" {
+		if liked, ok := payload["liked"].(bool); ok {
+			if liked {
+				action = "like"
+			} else {
+				action = "unlike"
+			}
+		}
+	}
+
+	video := extractVideoFromLikePayload(payload, action)
+	awemeID := r.URL.Query().Get("aweme_id")
+	if awemeID == "" {
+		awemeID = stringValue(payload["aweme_id"])
+	}
+	if awemeID == "" && video != nil {
+		awemeID = stringValue(video["aweme_id"])
+	}
+
+	return action, awemeID, video, nil
+}
+
+func findVideoByAwemeID(awemeID string) (map[string]interface{}, bool, error) {
+	if awemeID == "" {
+		return nil, false, nil
+	}
+
+	videos, err := scanMediaVideos()
+	if err == nil {
+		for _, video := range videos {
+			if stringValue(video["aweme_id"]) == awemeID {
+				return cloneJSONObject(video), true, nil
+			}
+		}
+	}
+
+	for _, video := range jsonVideos {
+		if stringValue(video["aweme_id"]) == awemeID {
+			return cloneJSONObject(video), true, nil
+		}
+	}
+
+	if err != nil {
+		return nil, false, err
+	}
+	return nil, false, nil
+}
+
+func updateCollectPayload(action, awemeID string, video map[string]interface{}) (CollectPayload, error) {
+	collectFileMu.Lock()
+	defer collectFileMu.Unlock()
+
+	payload, err := loadCollectPayloadLocked()
+	if err != nil {
+		return CollectPayload{}, err
+	}
+
+	switch action {
+	case "like":
+		if video == nil {
+			var found bool
+			video, found, err = findVideoByAwemeID(awemeID)
+			if err != nil {
+				return CollectPayload{}, err
+			}
+			if !found {
+				return CollectPayload{}, fmt.Errorf("video not found for aweme_id %s", awemeID)
+			}
+		}
+		if err := upsertCollectedVideo(&payload, video); err != nil {
+			return CollectPayload{}, err
+		}
+	case "unlike":
+		if awemeID == "" && video != nil {
+			awemeID = stringValue(video["aweme_id"])
+		}
+		if awemeID == "" {
+			return CollectPayload{}, fmt.Errorf("missing aweme_id")
+		}
+		removeCollectedVideo(&payload, awemeID)
+	default:
+		return CollectPayload{}, fmt.Errorf("unsupported like action %q", action)
+	}
+
+	if err := saveCollectPayloadLocked(payload); err != nil {
+		return CollectPayload{}, err
+	}
+	return payload, nil
+}
+
 func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	// CORS headers
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -434,6 +779,9 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	videos = shuffleVideos(videos, rng.Shuffle)
 	total = len(videos)
 	end := start + pageSize
 	if end > total {
@@ -630,27 +978,54 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Logic from mock: allRecommendVideos.slice(200, 350)
-	var list interface{}
-	total := 150
-	startIdx := 200
-	endIdx := 350
-	if len(jsonVideos) >= endIdx {
-		list = jsonVideos[startIdx:endIdx]
-	} else if len(jsonVideos) > startIdx {
-		list = jsonVideos[startIdx:]
-		total = len(jsonVideos) - startIdx
-	} else {
-		list = []interface{}{}
-		total = 0
+	if r.Method == http.MethodGet {
+		collectPayload, err := loadCollectPayload()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resp := ResponseData{
+			Total: collectPayload.Data.Video.Total,
+			List:  collectPayload.Data.Video.List,
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		finalResp := map[string]interface{}{
+			"code": 200,
+			"data": resp,
+			"msg":  "",
+		}
+		json.NewEncoder(w).Encode(finalResp)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	action, awemeID, video, err := parseVideoLikeMutation(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if action == "" {
+		http.Error(w, "missing like action", http.StatusBadRequest)
+		return
+	}
+
+	collectPayload, err := updateCollectPayload(action, awemeID, video)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	resp := ResponseData{
-		Total: total,
-		List:  list,
+		Total: collectPayload.Data.Video.Total,
+		List:  collectPayload.Data.Video.List,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	
 	finalResp := map[string]interface{}{
 		"code": 200,
 		"data": resp,
@@ -824,37 +1199,14 @@ func userCollectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mock logic: video: slice(350, 400), music: resource.music
-	var videoList interface{}
-	videoTotal := 50
-	vStart := 350
-	vEnd := 400
-	if len(jsonVideos) >= vEnd {
-		videoList = jsonVideos[vStart:vEnd]
-	} else if len(jsonVideos) > vStart {
-		videoList = jsonVideos[vStart:]
-		videoTotal = len(jsonVideos) - vStart
-	} else {
-		videoList = []interface{}{}
-		videoTotal = 0
+	collectPayload, err := loadCollectPayload()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	finalResp := map[string]interface{}{
-		"code": 200,
-		"data": map[string]interface{}{
-			"video": map[string]interface{}{
-				"total": videoTotal,
-				"list":  videoList,
-			},
-			"music": map[string]interface{}{
-				"total": len(jsonMusic),
-				"list":  jsonMusic,
-			},
-		},
-		"msg": "",
-	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(finalResp)
+	json.NewEncoder(w).Encode(collectPayload)
 }
 
 func userVideoListHandler(w http.ResponseWriter, r *http.Request) {
@@ -1149,6 +1501,9 @@ func main() {
 	// Load JSON data on startup
 	loadJsonData()
 	loadMusicData()
+	if _, err := loadCollectPayload(); err != nil {
+		log.Printf("Failed to initialize user collect file: %v", err)
+	}
 
 	// Serve media files
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(mediaDir))))
