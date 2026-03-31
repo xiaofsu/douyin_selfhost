@@ -76,6 +76,13 @@ test('player video styles show the full frame instead of cropping it', () => {
   assert.match(styles, /\.player-video\.is-landscape\s*\{[\s\S]*object-fit:\s*contain;/);
 });
 
+test('player scrim removes the dark gradient overlay', () => {
+  const scrimRules = Array.from(styles.matchAll(/(?:^|\n)\.player-scrim\s*\{([\s\S]*?)\}/g));
+
+  assert.ok(scrimRules.length > 0, 'expected .player-scrim rule to exist');
+  assert.equal(scrimRules.some(([, rule]) => rule.includes('linear-gradient')), false);
+});
+
 test('player shell includes ios fill-available fallback for fullscreen coverage', () => {
   assert.match(
     styles,
@@ -100,6 +107,10 @@ test('player fast mode styles hide chrome and scrim while keeping the video visi
   assert.match(
     styles,
     /\.player-stage\.is-fast-mode\s+\.player-top-nav,\s*\.player-stage\.is-fast-mode\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-actions,\s*\.player-stage\.is-fast-mode\s+\.player-progress,\s*\.player-stage\.is-fast-mode\s+\.player-scrim\s*\{[\s\S]*opacity:\s*0;[\s\S]*pointer-events:\s*none;/,
+  );
+  assert.match(
+    styles,
+    /\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-actions\s*\{[\s\S]*opacity:\s*0;/,
   );
 });
 
