@@ -92,6 +92,13 @@ test('player shell includes ios fill-available fallback for fullscreen coverage'
   assert.match(styles, /\.phone-frame--player\s*\{[\s\S]*height:\s*100%;/);
 });
 
+test('player top nav uses text shadow for readability', () => {
+  assert.match(
+    styles,
+    /\.floating-nav-link\s*\{[\s\S]*text-shadow:\s*0\s+2px\s+12px\s+rgba\(0,\s*0,\s*0,\s*0\.45\);/,
+  );
+});
+
 test('resolveFastModeViewState hides player chrome during long-press playback', () => {
   assert.deepEqual(resolveFastModeViewState(false), {
     chromeHidden: false,
@@ -111,6 +118,24 @@ test('player fast mode styles hide chrome and scrim while keeping the video visi
   assert.match(
     styles,
     /\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-actions\s*\{[\s\S]*opacity:\s*0;/,
+  );
+});
+
+test('player action rail is bottom-aligned and uses compact button sizing', () => {
+  assert.match(
+    styles,
+    /\.player-actions\s*\{[\s\S]*bottom:\s*max\(64px,\s*calc\(env\(safe-area-inset-bottom\)\s*\+\s*46px\)\);[\s\S]*top:\s*auto;[\s\S]*transform:\s*none;/,
+  );
+  assert.match(
+    styles,
+    /\.action-button\s*\{[\s\S]*width:\s*44px;[\s\S]*height:\s*44px;/,
+  );
+});
+
+test('player action buttons render as standalone icons without background chrome', () => {
+  assert.match(
+    styles,
+    /\.action-button\s*\{[\s\S]*border:\s*0;[\s\S]*background:\s*transparent;[\s\S]*backdrop-filter:\s*none;/,
   );
 });
 

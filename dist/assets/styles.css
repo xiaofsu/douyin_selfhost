@@ -238,6 +238,7 @@ img {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.58);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -247,6 +248,7 @@ img {
 
 .floating-nav-divider {
   color: rgba(255, 255, 255, 0.34);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
 .ghost-button,
@@ -586,9 +588,10 @@ img {
 }
 
 .player-actions {
-  top: 50%;
+  top: auto;
   right: 18px;
-  transform: translateY(-50%);
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 46px));
+  transform: none;
   display: grid;
   gap: 12px;
   justify-items: center;
@@ -598,13 +601,13 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(10, 10, 10, 0.26);
-  backdrop-filter: blur(14px);
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .action-button--mute {
