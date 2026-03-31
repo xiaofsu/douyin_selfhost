@@ -265,11 +265,14 @@ export function createPlayerView(container, options) {
   let speedProbeTimer = 0;
   let speedProbeRunId = 0;
   let speedProbeAbortController = null;
+  let wakeLockSentinel = null;
+  let wakeLockReleaseHandler = null;
   const cleanups = [];
   const connection = globalThis.navigator?.connection
     ?? globalThis.navigator?.mozConnection
     ?? globalThis.navigator?.webkitConnection
     ?? null;
+  const wakeLock = globalThis.navigator?.wakeLock ?? null;
 
   container.innerHTML = renderPlayerMarkup({
     videos,
@@ -294,6 +297,63 @@ export function createPlayerView(container, options) {
 
   function currentVideo() {
     return videoNodes[activeIndex] ?? null;
+  }
+
+  function clearWakeLockSentinel() {
+    if (wakeLockSentinel && wakeLockReleaseHandler && typeof wakeLockSentinel.removeEventListener === 'function') {
+      wakeLockSentinel.removeEventListener('release', wakeLockReleaseHandler);
+    }
+    wakeLockSentinel = null;
+    wakeLockReleaseHandler = null;
+  }
+
+  async function releaseWakeLock() {
+    const sentinel = wakeLockSentinel;
+    clearWakeLockSentinel();
+    try {
+      await sentinel?.release?.();
+    } catch (_error) {
+      // Ignore wake lock release failures.
+    }
+  }
+
+  async function ensureWakeLock() {
+    if (
+      destroyed
+      || wakeLockSentinel
+      || typeof wakeLock?.request !== 'function'
+      || globalThis.document?.visibilityState === 'hidden'
+    ) {
+      return;
+    }
+
+    try {
+      const sentinel = await wakeLock.request('screen');
+      if (destroyed) {
+        try {
+          await sentinel?.release?.();
+        } catch (_error) {
+          // Ignore wake lock release failures during teardown.
+        }
+        return;
+      }
+
+      clearWakeLockSentinel();
+      wakeLockSentinel = sentinel;
+      wakeLockReleaseHandler = () => {
+        if (wakeLockSentinel !== sentinel) {
+          return;
+        }
+
+        clearWakeLockSentinel();
+        if (!destroyed && globalThis.document?.visibilityState === 'visible') {
+          void ensureWakeLock();
+        }
+      };
+      sentinel?.addEventListener?.('release', wakeLockReleaseHandler);
+    } catch (_error) {
+      clearWakeLockSentinel();
+    }
   }
 
   function readConnectionDownlink() {
@@ -1015,7 +1075,11 @@ export function createPlayerView(container, options) {
   const visibilityHandler = () => {
     if (globalThis.document?.visibilityState === 'visible') {
       resetNetworkSpeedRefresh(0);
+      void ensureWakeLock();
+      return;
     }
+
+    void releaseWakeLock();
   };
   const connectionChangeHandler = () => {
     connectionDownlinkMbps = readConnectionDownlink();
@@ -1053,6 +1117,9 @@ export function createPlayerView(container, options) {
   cleanups.push(() => globalThis.document?.removeEventListener?.('visibilitychange', visibilityHandler));
   cleanups.push(() => connection?.removeEventListener?.('change', connectionChangeHandler));
   cleanups.push(() => cancelNetworkSpeedRefresh());
+  cleanups.push(() => {
+    void releaseWakeLock();
+  });
 
   for (let index = 0; index < videoNodes.length; index += 1) {
     const video = videoNodes[index];
@@ -1100,6 +1167,7 @@ export function createPlayerView(container, options) {
   }
 
   updateTrack({ immediate: true, force: true });
+  void ensureWakeLock();
 
   return {
     destroy() {

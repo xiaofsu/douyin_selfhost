@@ -163,6 +163,12 @@ test('player network speed refresh interval is fixed to 500ms', () => {
   assert.equal(playerScript.includes('const SPEED_PROBE_INTERVAL_MS = 500;'), true);
 });
 
+test('player requests a screen wake lock and re-acquires it when the page becomes visible again', () => {
+  assert.equal(playerScript.includes("wakeLock.request('screen')"), true);
+  assert.equal(playerScript.includes('releaseWakeLock()'), true);
+  assert.equal(playerScript.includes('void ensureWakeLock();'), true);
+});
+
 test('player action rail is bottom-aligned and uses compact button sizing', () => {
   assert.match(
     styles,
