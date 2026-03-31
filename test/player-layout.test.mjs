@@ -20,6 +20,7 @@ const sampleVideo = {
   src: '/media/piano/classroom/lesson-07.mp4',
   liked: false,
 };
+const playerScript = readFileSync(new URL('../dist/assets/js/components/player.mjs', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../dist/assets/styles.css', import.meta.url), 'utf8');
 
 test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () => {
@@ -39,7 +40,7 @@ test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () =
   assert.equal(html.includes('首页'), true);
   assert.equal(html.includes('我的'), true);
   assert.equal(html.includes('data-network-speed'), true);
-  assert.equal(html.includes('0 kb'), true);
+  assert.equal(html.includes('0 Mbps'), true);
   assert.equal(html.includes('2 倍速播放中'), true);
   assert.equal(html.includes('data-toggle-mute'), true);
   assert.equal(html.includes('lesson-07.mp4'), true);
@@ -156,6 +157,10 @@ test('player network speed is pinned to the top-left with readable text styling'
     styles,
     /\.network-speed\s*\{[\s\S]*top:\s*max\(18px,\s*calc\(env\(safe-area-inset-top\)\s*\+\s*6px\)\);[\s\S]*left:\s*18px;[\s\S]*text-shadow:\s*0\s+2px\s+12px\s+rgba\(0,\s*0,\s*0,\s*0\.45\);/,
   );
+});
+
+test('player network speed refresh interval is fixed to 500ms', () => {
+  assert.equal(playerScript.includes('const SPEED_PROBE_INTERVAL_MS = 500;'), true);
 });
 
 test('player action rail is bottom-aligned and uses compact button sizing', () => {

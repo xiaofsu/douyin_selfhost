@@ -172,23 +172,23 @@ test('resolveNetworkSpeedLabel prefers current measured speed and resets to zero
       measuredMbps: 12.36,
       connectionDownlinkMbps: 8.8,
     }),
-    '12360 kb',
+    '12.4 Mbps',
   );
   assert.equal(
     resolveNetworkSpeedLabel({
       measuredMbps: 0.78,
       connectionDownlinkMbps: 8.8,
     }),
-    '780 kb',
+    '780 Kbps',
   );
   assert.equal(
     resolveNetworkSpeedLabel({
       measuredMbps: 0,
       connectionDownlinkMbps: 8.8,
     }),
-    '0 kb',
+    '0 Mbps',
   );
-  assert.equal(resolveNetworkSpeedLabel({}), '0 kb');
+  assert.equal(resolveNetworkSpeedLabel({}), '0 Mbps');
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {

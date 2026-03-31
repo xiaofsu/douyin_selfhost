@@ -27,7 +27,7 @@ const VOLUME_ICON = `
 
 const SEEK_COMMIT_READY_STATE = 2;
 const SPEED_PROBE_BYTES = 96 * 1024;
-const SPEED_PROBE_INTERVAL_MS = 8000;
+const SPEED_PROBE_INTERVAL_MS = 500;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -98,7 +98,7 @@ export function renderPlayerMarkup(options) {
             ${slides}
           </div>
 
-          <div class="network-speed" data-network-speed aria-live="polite">0 kb</div>
+          <div class="network-speed" data-network-speed aria-live="polite">0 Mbps</div>
 
           <nav class="floating-nav player-top-nav" data-player-top-nav data-ignore-gesture>
             <button

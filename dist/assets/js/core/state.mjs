@@ -171,10 +171,14 @@ function formatNetworkSpeed(speedMbps) {
   }
 
   if (speedMbps === 0) {
-    return '0 kb';
+    return '0 Mbps';
   }
 
-  return `${Math.max(0, Math.round(speedMbps * 1000))} kb`;
+  if (speedMbps < 1) {
+    return `${Math.max(1, Math.round(speedMbps * 1000))} Kbps`;
+  }
+
+  return `${speedMbps.toFixed(1)} Mbps`;
 }
 
 export function resolveNetworkSpeedLabel(options = {}) {
@@ -182,14 +186,14 @@ export function resolveNetworkSpeedLabel(options = {}) {
   const connectionDownlinkMbps = Number(options.connectionDownlinkMbps);
 
   if (Number.isFinite(measuredMbps) && measuredMbps >= 0) {
-    return formatNetworkSpeed(measuredMbps) || '0 kb';
+    return formatNetworkSpeed(measuredMbps) || '0 Mbps';
   }
 
   if (Number.isFinite(connectionDownlinkMbps) && connectionDownlinkMbps > 0) {
-    return formatNetworkSpeed(connectionDownlinkMbps) || '0 kb';
+    return formatNetworkSpeed(connectionDownlinkMbps) || '0 Mbps';
   }
 
-  return '0 kb';
+  return '0 Mbps';
 }
 
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
