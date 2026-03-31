@@ -30,3 +30,24 @@ test('backend startup code does not reference legacy posts6 fallback paths', asy
   assert.equal(mainGo.includes('src/assets/data/posts6.json'), false);
   assert.equal(mainGo.includes('Trying src path'), false);
 });
+
+test('home navigation refreshes the home feed instead of only switching route', async () => {
+  const appScript = await read('dist/assets/js/app.mjs');
+
+  assert.equal(appScript.includes('async function handleOpenHomeRefresh()'), true);
+  assert.equal(appScript.includes("bind('[data-open-home]', handleOpenHomeRefresh);"), true);
+  assert.equal(appScript.includes('onOpenHome: handleOpenHomeRefresh,'), true);
+  assert.equal(appScript.includes('loadInitialData({ force: true })'), true);
+});
+
+test('ios standalone metadata is present for status-bar coverage', async () => {
+  const indexHtml = await read('dist/index.html');
+  const manifest = JSON.parse(await read('dist/manifest.webmanifest'));
+
+  assert.equal(indexHtml.includes('viewport-fit=cover'), true);
+  assert.equal(indexHtml.includes('apple-mobile-web-app-capable'), true);
+  assert.equal(indexHtml.includes('apple-mobile-web-app-status-bar-style'), true);
+  assert.equal(indexHtml.includes('rel="manifest"'), true);
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(manifest.name, '本地抖音播放器');
+});

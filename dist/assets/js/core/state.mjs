@@ -50,6 +50,18 @@ export function createSessionFeed(videos, random = Math.random) {
   return copy;
 }
 
+export function createHomeRefreshState(seed = '') {
+  return {
+    homeFeed: [],
+    homeFeedSeed: seed,
+    homeFeedTotal: 0,
+    homeHasMore: false,
+    homeIsLoadingMore: false,
+    homeActiveIndex: 0,
+    soundEnabled: false,
+  };
+}
+
 export function describeVideoPath(video) {
   const fallbackFileName = String(video?.raw?.filename ?? video?.desc ?? '未命名视频');
   const source = String(video?.src ?? video?.raw?.src ?? video?.raw?.url ?? '').trim();

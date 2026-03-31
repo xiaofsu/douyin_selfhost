@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   canCommitPendingSeek,
   renderPlayerMarkup,
+  resolveFastModeViewState,
   resolveDisplayedProgressSnapshot,
 } from '../dist/assets/js/components/player.mjs';
 import { renderLikesGridMarkup } from '../dist/assets/js/components/likes-grid.mjs';
@@ -16,6 +18,7 @@ const sampleVideo = {
   src: '/media/piano/classroom/lesson-07.mp4',
   liked: false,
 };
+const styles = readFileSync(new URL('../dist/assets/styles.css', import.meta.url), 'utf8');
 
 test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () => {
   const html = renderPlayerMarkup({
@@ -62,6 +65,32 @@ test('renderPlayerMarkup hides the mute toggle after audio is enabled', () => {
   });
 
   assert.match(html, /action-button action-button--mute is-hidden/);
+});
+
+test('player video styles show the full frame instead of cropping it', () => {
+  assert.match(styles, /\.player-video\s*\{[\s\S]*object-fit:\s*contain;/);
+});
+
+test('player shell includes ios fill-available fallback for fullscreen coverage', () => {
+  assert.match(styles, /\.phone-frame--player\s*\{[\s\S]*height:\s*-webkit-fill-available;/);
+});
+
+test('resolveFastModeViewState hides player chrome during long-press playback', () => {
+  assert.deepEqual(resolveFastModeViewState(false), {
+    chromeHidden: false,
+    speedChipActive: false,
+  });
+  assert.deepEqual(resolveFastModeViewState(true), {
+    chromeHidden: true,
+    speedChipActive: true,
+  });
+});
+
+test('player fast mode styles hide chrome and scrim while keeping the video visible', () => {
+  assert.match(
+    styles,
+    /\.player-stage\.is-fast-mode\s+\.player-top-nav,\s*\.player-stage\.is-fast-mode\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-actions,\s*\.player-stage\.is-fast-mode\s+\.player-progress,\s*\.player-stage\.is-fast-mode\s+\.player-scrim\s*\{[\s\S]*opacity:\s*0;[\s\S]*pointer-events:\s*none;/,
+  );
 });
 
 test('resolveDisplayedProgressSnapshot keeps the confirmed time until the seek target is ready', () => {
@@ -120,7 +149,18 @@ test('renderLikesGridMarkup removes hero copy and keeps compact top nav', () => 
   assert.equal(html.includes('Night drive'), false);
   assert.equal(html.includes('Local User'), false);
   assert.equal(html.includes('lesson-07.mp4'), true);
-  assert.equal(html.includes('/media/piano/classroom'), true);
+  assert.equal(html.includes('<span>/media/piano/classroom</span>'), false);
   assert.equal(html.includes('首页'), true);
   assert.equal(html.includes('我的'), true);
+});
+
+test('likes card file name uses single-line ellipsis instead of overflowing the card', () => {
+  assert.match(
+    styles,
+    /\.likes-card-copy\s*\{[\s\S]*min-width:\s*0;/,
+  );
+  assert.match(
+    styles,
+    /\.likes-card-copy strong\s*\{[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+  );
 });

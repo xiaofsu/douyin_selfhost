@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   clamp,
+  createHomeRefreshState,
   createSessionFeed,
   describeVideoPath,
   deriveNextLikedPlayerState,
@@ -55,6 +56,18 @@ test('createSessionFeed returns a shuffled copy without mutating input', () => {
 
   assert.deepEqual(list.map((item) => item.awemeId), ['1', '2', '3']);
   assert.deepEqual(feed.map((item) => item.awemeId), ['2', '3', '1']);
+});
+
+test('createHomeRefreshState resets home feed paging and playback for a full replay', () => {
+  assert.deepEqual(createHomeRefreshState('seed-next'), {
+    homeFeed: [],
+    homeFeedSeed: 'seed-next',
+    homeFeedTotal: 0,
+    homeHasMore: false,
+    homeIsLoadingMore: false,
+    homeActiveIndex: 0,
+    soundEnabled: false,
+  });
 });
 
 test('resolvePlayerEntry prefers the requested aweme id and falls back to the first item', () => {

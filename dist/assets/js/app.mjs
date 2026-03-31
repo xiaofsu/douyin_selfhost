@@ -3,6 +3,7 @@ import { createLikesGridView } from './components/likes-grid.mjs';
 import { createPlayerView } from './components/player.mjs';
 import { navigate, parseRoute } from './core/router.mjs';
 import {
+  createHomeRefreshState,
   deriveNextLikedPlayerState,
   normalizeVideo,
   resolvePlayerEntry,
@@ -162,7 +163,7 @@ function mountStatusView(options) {
     }
   };
 
-  bind('[data-open-home]', () => navigate('home'));
+  bind('[data-open-home]', handleOpenHomeRefresh);
   bind('[data-open-likes-grid]', () => navigate('likes-grid'));
 
   if (onAction) {
@@ -188,6 +189,25 @@ function showToast(message) {
 
 function createFeedSeed() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function applyHomeRefreshState(seed = '') {
+  Object.assign(state, createHomeRefreshState(seed));
+}
+
+async function handleOpenHomeRefresh() {
+  if (state.isLoading) {
+    return;
+  }
+
+  state.error = '';
+  state.isLoading = true;
+  applyHomeRefreshState('');
+
+  const currentRoute = parseRoute(new URL(window.location.href));
+  navigate('home', { replace: currentRoute.name === 'home' });
+
+  await loadInitialData({ force: true });
 }
 
 function applyHomeFeedPage(page, likedIds, options = {}) {
@@ -257,12 +277,7 @@ async function loadInitialData(options = {}) {
       ...video,
       liked: true,
     }));
-    state.homeFeedSeed = homeFeedSeed;
-    state.homeFeedTotal = 0;
-    state.homeHasMore = false;
-    state.homeIsLoadingMore = false;
-    state.homeActiveIndex = 0;
-    state.soundEnabled = false;
+    applyHomeRefreshState(homeFeedSeed);
     applyHomeFeedPage(recommendedRaw, likedIds, { replace: true });
     state.isReady = true;
     state.isLoading = false;
@@ -379,7 +394,7 @@ function renderCurrentRoute() {
       pendingLikes: state.pendingLikes,
       soundEnabled: state.soundEnabled,
       onToggleLike: handleToggleLike,
-      onOpenHome: () => navigate('home'),
+      onOpenHome: handleOpenHomeRefresh,
       onOpenLikesGrid: () => navigate('likes-grid'),
       onSoundEnabledChange: (enabled) => {
         state.soundEnabled = enabled;
@@ -399,7 +414,7 @@ function renderCurrentRoute() {
     currentView = createLikesGridView(root, {
       videos: state.likedVideos,
       onOpenVideo: (playId) => navigate('likes-player', { playId }),
-      onOpenHome: () => navigate('home'),
+      onOpenHome: handleOpenHomeRefresh,
       onOpenLikesGrid: () => navigate('likes-grid'),
     });
     return;
@@ -424,7 +439,7 @@ function renderCurrentRoute() {
     pendingLikes: state.pendingLikes,
     soundEnabled: state.soundEnabled,
     onToggleLike: handleToggleLike,
-    onOpenHome: () => navigate('home'),
+    onOpenHome: handleOpenHomeRefresh,
     onOpenLikesGrid: () => navigate('likes-grid'),
     onSoundEnabledChange: (enabled) => {
       state.soundEnabled = enabled;

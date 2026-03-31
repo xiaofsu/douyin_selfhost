@@ -10,7 +10,7 @@ function escapeHtml(value) {
 }
 
 function renderLikesCard(video) {
-  const { fileName, directory } = describeVideoPath(video);
+  const { fileName } = describeVideoPath(video);
 
   return `
     <button class="likes-card" data-open-video="${escapeHtml(video.awemeId)}" type="button">
@@ -26,7 +26,6 @@ function renderLikesCard(video) {
       </span>
       <span class="likes-card-copy">
         <strong>${escapeHtml(fileName)}</strong>
-        <span>${escapeHtml(directory)}</span>
       </span>
     </button>
   `;

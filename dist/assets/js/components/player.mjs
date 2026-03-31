@@ -184,6 +184,13 @@ export function canCommitPendingSeek(video) {
   return !!video && !video.seeking && Number(video.readyState ?? 0) >= SEEK_COMMIT_READY_STATE;
 }
 
+export function resolveFastModeViewState(isFastMode) {
+  return {
+    chromeHidden: !!isFastMode,
+    speedChipActive: !!isFastMode,
+  };
+}
+
 export function createPlayerView(container, options) {
   const {
     videos,
@@ -449,6 +456,7 @@ export function createPlayerView(container, options) {
     pauseInactiveVideos();
     syncLikeButtons();
     syncMuteButtons();
+    syncFastModeUi();
     clearPendingSeekState();
     syncProgress();
     writeLikesPlayerUrl();
@@ -472,6 +480,12 @@ export function createPlayerView(container, options) {
     setActiveIndex(activeIndex + delta);
   }
 
+  function syncFastModeUi() {
+    const viewState = resolveFastModeViewState(fastMode);
+    stage.classList.toggle('is-fast-mode', viewState.chromeHidden);
+    speedChip.classList.toggle('is-active', viewState.speedChipActive);
+  }
+
   function disableFastMode() {
     window.clearTimeout(longPressTimer);
     longPressTimer = 0;
@@ -481,7 +495,7 @@ export function createPlayerView(container, options) {
     }
 
     fastMode = false;
-    speedChip.classList.remove('is-active');
+    syncFastModeUi();
 
     const video = currentVideo();
     if (video) {
@@ -497,7 +511,7 @@ export function createPlayerView(container, options) {
       }
 
       fastMode = true;
-      speedChip.classList.add('is-active');
+      syncFastModeUi();
 
       const video = currentVideo();
       if (video) {
