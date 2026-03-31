@@ -23,6 +23,7 @@ const state = {
   homeHasMore: false,
   homeIsLoadingMore: false,
   homeActiveIndex: 0,
+  soundEnabled: false,
   likedVideos: [],
   likedIds: new Set(),
   pendingLikes: new Set(),
@@ -261,6 +262,7 @@ async function loadInitialData(options = {}) {
     state.homeHasMore = false;
     state.homeIsLoadingMore = false;
     state.homeActiveIndex = 0;
+    state.soundEnabled = false;
     applyHomeFeedPage(recommendedRaw, likedIds, { replace: true });
     state.isReady = true;
     state.isLoading = false;
@@ -375,9 +377,13 @@ function renderCurrentRoute() {
       activeTab: 'home',
       likedIds: state.likedIds,
       pendingLikes: state.pendingLikes,
+      soundEnabled: state.soundEnabled,
       onToggleLike: handleToggleLike,
       onOpenHome: () => navigate('home'),
       onOpenLikesGrid: () => navigate('likes-grid'),
+      onSoundEnabledChange: (enabled) => {
+        state.soundEnabled = enabled;
+      },
       onActiveIndexChange: (index) => {
         state.homeActiveIndex = index;
 
@@ -416,9 +422,13 @@ function renderCurrentRoute() {
     activeTab: 'likes',
     likedIds: state.likedIds,
     pendingLikes: state.pendingLikes,
+    soundEnabled: state.soundEnabled,
     onToggleLike: handleToggleLike,
     onOpenHome: () => navigate('home'),
     onOpenLikesGrid: () => navigate('likes-grid'),
+    onSoundEnabledChange: (enabled) => {
+      state.soundEnabled = enabled;
+    },
   });
 }
 

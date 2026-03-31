@@ -102,6 +102,22 @@ export function seekRatioFromPointer(clientX, left, width) {
   return clamp((clientX - left) / width, 0, 1);
 }
 
+export function resolveSoundPreference(currentSoundEnabled, action) {
+  if (action === 'enable') {
+    return true;
+  }
+
+  if (action === 'disable') {
+    return false;
+  }
+
+  if (action === 'playback-error') {
+    return currentSoundEnabled;
+  }
+
+  return currentSoundEnabled;
+}
+
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
   if (!hasMore || isLoadingMore || loadedCount <= 0) {
     return false;

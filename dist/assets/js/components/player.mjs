@@ -2,6 +2,7 @@ import {
   clamp,
   describeVideoPath,
   formatDuration,
+  resolveSoundPreference,
   seekRatioFromPointer,
   shouldAttachVideoSource,
 } from '../core/state.mjs';
@@ -139,10 +140,12 @@ export function createPlayerView(container, options) {
     activeTab = 'home',
     likedIds: initialLikedIds = new Set(),
     pendingLikes: initialPendingLikes = new Set(),
+    soundEnabled: initialSoundEnabled = false,
     onToggleLike,
     onOpenHome,
     onOpenLikesGrid,
     onActiveIndexChange,
+    onSoundEnabledChange,
   } = options;
 
   let likedIds = initialLikedIds;
@@ -155,7 +158,7 @@ export function createPlayerView(container, options) {
   let destroyed = false;
   let wheelLocked = false;
   let wasPlayingBeforeSeek = false;
-  let soundEnabled = false;
+  let soundEnabled = initialSoundEnabled;
   const cleanups = [];
 
   container.innerHTML = renderPlayerMarkup({
@@ -296,8 +299,7 @@ export function createPlayerView(container, options) {
       await video.play();
     } catch (_error) {
       if (soundEnabled) {
-        soundEnabled = false;
-        syncMuteButtons();
+        soundEnabled = resolveSoundPreference(soundEnabled, 'playback-error');
         video.muted = true;
         try {
           await video.play();
@@ -601,8 +603,9 @@ export function createPlayerView(container, options) {
       return;
     }
 
-    soundEnabled = true;
+    soundEnabled = resolveSoundPreference(soundEnabled, 'enable');
     syncMuteButtons();
+    onSoundEnabledChange?.(soundEnabled);
     playActiveVideo();
   }
 

@@ -7,6 +7,7 @@ import {
   describeVideoPath,
   deriveNextLikedPlayerState,
   normalizeVideo,
+  resolveSoundPreference,
   resolvePlayerEntry,
   seekRatioFromPointer,
   shouldAttachVideoSource,
@@ -111,6 +112,12 @@ test('seekRatioFromPointer clamps the drag position to the progress bar width', 
   assert.equal(seekRatioFromPointer(0, 100, 200), 0);
   assert.equal(seekRatioFromPointer(200, 100, 200), 0.5);
   assert.equal(seekRatioFromPointer(400, 100, 200), 1);
+});
+
+test('resolveSoundPreference keeps user-enabled audio across playback failures', () => {
+  assert.equal(resolveSoundPreference(false, 'enable'), true);
+  assert.equal(resolveSoundPreference(true, 'playback-error'), true);
+  assert.equal(resolveSoundPreference(true, 'disable'), false);
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {
