@@ -1,12 +1,14 @@
 # Douyin Server
 
-这是一个为 [zyronon/douyin](https://github.com/zyronon/douyin) 前端项目设计的后端服务。它允许你在本地托管该应用并播放你自己的视频文件。
+这是一个纯本地的抖音式短视频播放器。仓库已经内置自己的静态前端；启动服务后即可在本地浏览器里上下滑动视频、点赞，并查看“我的喜欢”。
 
 ## 功能特性
 
 - **本地视频托管**：扫描本地目录中的视频文件（`.mp4`, `.webm`, `.ogg`）并通过 API 提供服务。
-- **前端托管**：将 Vue3 前端应用作为单页应用（SPA）进行托管。
-- **API 模拟**：实现了必要的 API 接口以支持前端功能（如用户面板、推荐视频等）。
+- **内置前端**：仓库内自带纯静态单页前端，直接由 Go 服务托管。
+- **短视频交互**：支持抖音式上下滑动、长按 2 倍速、进度条拖动定位。
+- **本地点赞持久化**：支持点赞/取消点赞，并将“我的喜欢”保存到本地文件。
+- **兼容接口**：保留了一组兼容接口，方便继续扩展或接入旧能力。
 - **Docker Support**: 使用 Docker 轻松部署，自动构建前端并设置后端环境。
 
 ## 前置条件
@@ -14,7 +16,6 @@
 - **视频文件**：包含你想要展示的视频文件的目录。
 - **Docker**：推荐使用 Docker 进行最简单的设置。
 - **Go 1.23+**：（如果不使用 Docker 并在本地运行后端）。
-- **Node.js & pnpm**：（如果需要手动构建前端）。
 
 ## 快速开始 (预编译包)
 
@@ -65,7 +66,7 @@
 
 ### 方式二：手动运行
 
-提供的 `Dockerfile` 会处理前端和后端的构建。
+提供的 `Dockerfile` 会直接打包当前仓库内置的前端和后端。
 
 1. **拉取镜像**
 
@@ -92,52 +93,21 @@
 
 如果你不想使用 Docker，可以按照以下步骤操作：
 
-### 1. 构建前端
-
-克隆前端仓库：
-
-```bash
-git clone https://github.com/zyronon/douyin.git
-cd douyin
-```
-
-**关键：在构建前，必须修改以下代码以适配本地后端：**
-
-1. **修改 `src/main.ts`**
-   删除或注释掉 `startMock()` 调用，以禁用前端自带的模拟数据。
-
-2. **修改 `src/config/index.ts`**
-   将 `baseUrl` 修改为本地后端地址：
-   ```typescript
-   // 原代码: baseUrl: 'https://dy.ttentau.top/imgs/'
-   baseUrl: '/'
-   ```
-
-3. **修改 `src/mock/index.ts`**
-   删除或注释掉 `const mock = new MockAdapter(axiosInstance)`，防止请求被前端拦截。
-
-完成修改后，执行构建：
-
-```bash
-pnpm install
-pnpm build
-```
-
-构建完成后，**建议删除 `dist/images` 目录**（如果存在），然后将生成的 `dist` 文件夹复制到本 `douyin_server` 项目的根目录下。
-
-### 2. 准备数据文件
-
-后端需要一些特定的数据文件。
-
-- 确保 `dist/data` 存在（这应该是前端构建的一部分）。
-- 在 `douyin_server` 根目录下创建目录结构 `src/assets/data/`。
-- 将前端源码中的 `posts6.json`（路径 `src/assets/data/posts6.json`）复制到 `douyin_server/src/assets/data/posts6.json`。
-
-### 3. 运行服务器
+### 1. 运行服务器
 
 ```bash
 go run main.go --static ./dist --media /path/to/your/videos
 ```
+
+启动后直接访问 [http://localhost:8080](http://localhost:8080)。
+
+只使用当前内置的 `视频播放 / 喜欢 / 我的喜欢` 三个核心功能时，不需要额外准备外部前端工程。
+
+页面行为：
+
+- 首页 `/`：随机竖屏视频流，支持上下滑动、点赞、长按 2 倍速、拖动进度条。
+- 我的喜欢 `/likes`：展示喜欢列表，点进任意视频后进入只播放喜欢内容的竖屏信息流。
+- 点赞状态持久化到 `data/user_collect.json`，刷新页面或重启服务后仍保留。
 
 ### 命令行参数
 
@@ -147,10 +117,14 @@ go run main.go --static ./dist --media /path/to/your/videos
 
 ## API 接口
 
-服务器实现了以下接口以支持前端：
+当前内置前端实际使用以下接口：
 
-- `/video/recommended`：返回视频列表（本地视频 + 模拟数据）。
+- `/video/recommended`：返回本地视频列表。
 - `/media/*`：提供实际的视频文件流。
+- `/video/like`：获取/更新点赞列表。
+
+仓库里还保留了一些兼容接口，但当前内置前端不依赖它们：
+
 - `/user/*`：用户相关接口（面板、收藏、朋友等）。
 - `/post/recommended`：推荐帖子。
 - `/shop/recommended`：推荐商品。

@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -134,12 +135,21 @@ var collectFileMu sync.Mutex
 
 var avatar_dataurl = "data:image/png;base64,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"
 
+func readOptionalStaticFile(path string) ([]byte, bool) {
+	data, err := fs.ReadFile(fileSystem, path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false
+		}
+		log.Printf("Failed to read %s: %v", path, err)
+		return nil, false
+	}
+	return data, true
+}
+
 func loadJsonData() {
 	// Load users
-	usersBytes, err := fs.ReadFile(fileSystem, "data/users.json")
-	if err != nil {
-		log.Printf("Failed to read users.json: %v", err)
-	} else {
+	if usersBytes, ok := readOptionalStaticFile("data/users.json"); ok {
 		var users []map[string]interface{}
 		if err := json.Unmarshal(usersBytes, &users); err != nil {
 			log.Printf("Failed to parse users.json: %v", err)
@@ -169,10 +179,7 @@ func loadJsonData() {
 	}
 
 	// Load posts (for /post/recommended)
-	postsBytes, err := fs.ReadFile(fileSystem, "data/posts.json")
-	if err != nil {
-		log.Printf("Failed to read posts.json: %v", err)
-	} else {
+	if postsBytes, ok := readOptionalStaticFile("data/posts.json"); ok {
 		if err := json.Unmarshal(postsBytes, &jsonPosts); err != nil {
 			log.Printf("Failed to parse posts.json: %v", err)
 		} else {
@@ -181,10 +188,7 @@ func loadJsonData() {
 	}
 
 	// Load goods (for /shop/recommended)
-	goodsBytes, err := fs.ReadFile(fileSystem, "data/goods.json")
-	if err != nil {
-		log.Printf("Failed to read goods.json: %v", err)
-	} else {
+	if goodsBytes, ok := readOptionalStaticFile("data/goods.json"); ok {
 		if err := json.Unmarshal(goodsBytes, &jsonGoods); err != nil {
 			log.Printf("Failed to parse goods.json: %v", err)
 		} else {
@@ -192,32 +196,8 @@ func loadJsonData() {
 		}
 	}
 
-	// Load videos
-	// Note: Original code used "src/assets/data/posts6.json", which seems to be a hardcoded path for dev?
-	// But let's assume it should also be in the static FS if we want it to work in prod.
-	// However, the original code had: videosBytes, err := os.ReadFile("src/assets/data/posts6.json")
-	// This path "src/assets/..." looks like source code path, not dist path.
-	// If the user hasn't moved this to dist, it might fail. 
-	// But let's check dist content. dist/data/videos.json exists.
-	// Maybe we should try to load from dist/data/videos.json instead of src/...
-	// Let's try to read from "data/videos.json" first, if that's what is intended.
-	// But strictly following the instruction, I should just fix the staticDir usage.
-	// The line `videosBytes, err := os.ReadFile("src/assets/data/posts6.json")` does NOT use staticDir.
-	// So I should probably leave it as is?
-	// But if the user runs the binary without source code, this will fail.
-	// The LS output shows `dist/data/videos.json`. It's likely the same content.
-	// I'll try to use `data/videos.json` from fileSystem as a better default, but fallback to original if needed?
-	// Actually, let's stick to what's likely correct for a "dist" based deployment.
-	
-	videosBytes, err := fs.ReadFile(fileSystem, "data/videos.json")
-	if err != nil {
-		log.Printf("Failed to read data/videos.json from fs: %v. Trying src path...", err)
-		videosBytes, err = os.ReadFile("src/assets/data/posts6.json")
-	}
-	
-	if err != nil {
-		log.Printf("Failed to read videos json: %v", err)
-	} else {
+	// Load optional static videos metadata when present.
+	if videosBytes, ok := readOptionalStaticFile("data/videos.json"); ok {
 		var videos []map[string]interface{}
 		if err := json.Unmarshal(videosBytes, &videos); err != nil {
 			log.Printf("Failed to parse videos json: %v", err)
@@ -241,10 +221,7 @@ func loadJsonData() {
 }
 
 func loadMusicData() {
-	musicBytes, err := fs.ReadFile(fileSystem, "data/music.json")
-	if err != nil {
-		log.Printf("Failed to read music.json: %v", err)
-	} else {
+	if musicBytes, ok := readOptionalStaticFile("data/music.json"); ok {
 		if err := json.Unmarshal(musicBytes, &jsonMusic); err != nil {
 			log.Printf("Failed to parse music.json: %v", err)
 		} else {
