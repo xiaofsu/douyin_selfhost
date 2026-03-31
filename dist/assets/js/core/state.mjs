@@ -166,22 +166,30 @@ export function resolveSoundPreference(currentSoundEnabled, action) {
 }
 
 function formatNetworkSpeed(speedMbps) {
-  if (!Number.isFinite(speedMbps) || speedMbps <= 0) {
+  if (!Number.isFinite(speedMbps) || speedMbps < 0) {
     return '';
   }
 
-  if (speedMbps < 1) {
-    return `${Math.max(1, Math.round(speedMbps * 1000))} Kbps`;
+  if (speedMbps === 0) {
+    return '0 kb';
   }
 
-  return `${speedMbps.toFixed(1)} Mbps`;
+  return `${Math.max(0, Math.round(speedMbps * 1000))} kb`;
 }
 
 export function resolveNetworkSpeedLabel(options = {}) {
   const measuredMbps = Number(options.measuredMbps);
   const connectionDownlinkMbps = Number(options.connectionDownlinkMbps);
-  const preferredSpeed = measuredMbps > 0 ? measuredMbps : connectionDownlinkMbps;
-  return formatNetworkSpeed(preferredSpeed) || '测速中';
+
+  if (Number.isFinite(measuredMbps) && measuredMbps >= 0) {
+    return formatNetworkSpeed(measuredMbps) || '0 kb';
+  }
+
+  if (Number.isFinite(connectionDownlinkMbps) && connectionDownlinkMbps > 0) {
+    return formatNetworkSpeed(connectionDownlinkMbps) || '0 kb';
+  }
+
+  return '0 kb';
 }
 
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {

@@ -39,7 +39,7 @@ test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () =
   assert.equal(html.includes('首页'), true);
   assert.equal(html.includes('我的'), true);
   assert.equal(html.includes('data-network-speed'), true);
-  assert.equal(html.includes('测速中'), true);
+  assert.equal(html.includes('0 kb'), true);
   assert.equal(html.includes('2 倍速播放中'), true);
   assert.equal(html.includes('data-toggle-mute'), true);
   assert.equal(html.includes('lesson-07.mp4'), true);

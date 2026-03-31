@@ -166,22 +166,29 @@ test('calculateTransferSpeedMbps converts bytes and duration into Mbps', () => {
   assert.equal(calculateTransferSpeedMbps(1_250_000, 0), 0);
 });
 
-test('resolveNetworkSpeedLabel prefers measured speed and falls back to connection downlink', () => {
+test('resolveNetworkSpeedLabel prefers current measured speed and resets to zero when no speed is available', () => {
   assert.equal(
     resolveNetworkSpeedLabel({
       measuredMbps: 12.36,
       connectionDownlinkMbps: 8.8,
     }),
-    '12.4 Mbps',
+    '12360 kb',
   );
   assert.equal(
     resolveNetworkSpeedLabel({
-      measuredMbps: null,
-      connectionDownlinkMbps: 0.78,
+      measuredMbps: 0.78,
+      connectionDownlinkMbps: 8.8,
     }),
-    '780 Kbps',
+    '780 kb',
   );
-  assert.equal(resolveNetworkSpeedLabel({}), '测速中');
+  assert.equal(
+    resolveNetworkSpeedLabel({
+      measuredMbps: 0,
+      connectionDownlinkMbps: 8.8,
+    }),
+    '0 kb',
+  );
+  assert.equal(resolveNetworkSpeedLabel({}), '0 kb');
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {

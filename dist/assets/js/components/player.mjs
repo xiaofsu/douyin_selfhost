@@ -98,7 +98,7 @@ export function renderPlayerMarkup(options) {
             ${slides}
           </div>
 
-          <div class="network-speed" data-network-speed aria-live="polite">测速中</div>
+          <div class="network-speed" data-network-speed aria-live="polite">0 kb</div>
 
           <nav class="floating-nav player-top-nav" data-player-top-nav data-ignore-gesture>
             <button
@@ -419,7 +419,7 @@ export function createPlayerView(container, options) {
     const runId = speedProbeRunId;
     const url = currentVideoUrl();
     connectionDownlinkMbps = readConnectionDownlink();
-    measuredSpeedMbps = readResourceSpeed(url);
+    measuredSpeedMbps = readResourceSpeed(url) ?? 0;
     syncNetworkSpeedUi();
 
     if (!url || globalThis.document?.visibilityState === 'hidden') {
@@ -438,10 +438,12 @@ export function createPlayerView(container, options) {
 
       if (probedMbps > 0) {
         measuredSpeedMbps = probedMbps;
+      } else {
+        measuredSpeedMbps = 0;
       }
     } catch (error) {
       if (error?.name !== 'AbortError') {
-        measuredSpeedMbps = readResourceSpeed(url);
+        measuredSpeedMbps = readResourceSpeed(url) ?? 0;
       }
     } finally {
       if (speedProbeAbortController === abortController) {
@@ -461,7 +463,7 @@ export function createPlayerView(container, options) {
   function resetNetworkSpeedRefresh(delay = 0) {
     cancelNetworkSpeedRefresh();
     connectionDownlinkMbps = readConnectionDownlink();
-    measuredSpeedMbps = readResourceSpeed(currentVideoUrl());
+    measuredSpeedMbps = readResourceSpeed(currentVideoUrl()) ?? 0;
     syncNetworkSpeedUi();
     scheduleNetworkSpeedRefresh(delay);
   }
