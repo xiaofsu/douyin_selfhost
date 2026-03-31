@@ -1,187 +1,263 @@
-# Fullscreen Player And Liked List Design
+# 全屏播放器与我的喜欢列表改版设计
 
-Date: 2026-03-31
+日期：2026-03-31
 
-## Context
+## 一、这次要解决什么问题
 
-The current frontend still carries several feed-style UI layers that reduce fullscreen immersion:
+现在的页面还有不少多余的界面层，影响全屏刷视频的感觉：
 
-- The player renders a separate header block and bottom navigation block instead of letting controls float directly on the video.
-- The player shows extra copy such as large descriptive text and the long-press hint.
-- The right-side action stack includes non-essential elements like the avatar.
-- The liked list page still uses large titles and explanatory copy instead of a minimal content-first layout.
-- Long-press playback can trigger browser-native text selection or callout behavior, which breaks the intended 2x gesture.
+- 播放器上面还有单独的头部块，下面还有单独的底部导航块。
+- 画面上有多余的文字说明，比如描述文案、长按提示。
+- 右侧操作区还有头像这类不必要元素。
+- “我的喜欢”列表页还有大标题和说明文案，不够干净。
+- 长按时会出现浏览器默认的选中、高亮、弹框之类的效果，打断 2 倍速交互。
 
-The user-approved target is a fullscreen browsing experience with minimal chrome, fixed top-right text navigation, and a liked list page that remains a list-first destination.
+这次的目标已经确认过了：
 
-## Goals
+- 播放器追求全屏沉浸感。
+- 右上固定文字导航 `首页 / 我的`。
+- 左下只显示文件名和当前目录。
+- 右侧只保留一个喜欢图标。
+- “我的”仍然先进入喜欢列表页，不直接进入喜欢视频流。
 
-- Make the player feel fullscreen and immersive, with UI floating directly over the video.
-- Keep only the controls and metadata required for fast browsing.
-- Replace block-style header/footer navigation with fixed top-right text navigation.
-- Preserve the existing random home feed behavior and the existing liked-list-first information architecture.
-- Fix long-press interaction so only the custom 2x playback feedback appears.
+## 二、目标
 
-## Non-Goals
+- 让播放器变成真正的全屏浏览体验。
+- 只保留必要信息和必要交互。
+- 所有导航和控件都直接浮在视频画面上，不再单独做块。
+- 保持现在首页随机视频流和我的喜欢列表的业务逻辑不变。
+- 修复长按 2 倍速时出现浏览器默认选中和弹框的问题。
 
-- No backend API changes beyond the already-finished paging and preload work.
-- No change to the meaning of `首页`, `我的`, home random feed, or liked list data.
-- No conversion of `我的` into a TikTok-style liked video stream.
-- No redesign of business logic for likes, routing semantics, or data persistence.
+## 三、不改什么
 
-## Approved Direction
+这次不做下面这些事：
 
-Recommended approach: update both the fullscreen player and the liked list page to use a consistent minimal navigation language while keeping the existing liked-list-first interaction model.
+- 不改后端接口。
+- 不改点赞数据结构。
+- 不把“我的”改成喜欢视频流。
+- 不改首页随机流的业务逻辑。
+- 不改已经完成的分页和预载规则。
 
-Why this approach:
+也就是说，首页还是：
 
-- It addresses the exact UI and UX issues the user called out.
-- It preserves the existing route model, which reduces regression risk.
-- It avoids unnecessary full-app visual churn.
+- 一次拉 5 条
+- 滑到第 3 条时再拉下一批
+- 同时最多只预载 3 条视频
 
-## Player Layout
+## 四、确认采用的方案
 
-The player becomes a pure fullscreen stage:
+采用方案 2：
 
-- Video fills the viewport.
-- All player chrome is rendered as overlays directly on top of the video.
-- There is no separate header card or bottom navigation block.
+- 播放器改成极简全屏样式
+- “我的喜欢”保留列表页入口，不改成视频流
+- 喜欢列表页也统一成更简洁的视觉风格
+- 但不做无关的大改
 
-### Top-Right Navigation
+这样做的原因：
 
-- Fixed text navigation appears at the top-right edge of the player.
-- The navigation contains exactly two items: `首页` and `我的`.
-- On the home random feed, `首页` is visually active.
-- On a player entered from the liked section, `我的` is visually active.
-- Clicking `首页` navigates to the home random feed.
-- Clicking `我的` navigates to the liked list page.
+- 正好覆盖你明确提的需求
+- 改动范围可控
+- 不会把现在已经可用的路由和数据逻辑打散
 
-### Left-Bottom Metadata
+## 五、播放器怎么改
 
-The lower-left metadata block is reduced to two lines only:
+### 1. 整体结构
 
-- File name
-- Current directory
+播放器改成真正的全屏视频舞台：
 
-Removed from the player metadata area:
+- 视频铺满整个可视区域
+- 所有文字和按钮直接浮在视频上
+- 不再保留单独的头部块
+- 不再保留单独的底部导航块
 
-- Video description
-- Author handle
-- Extra captions
-- Long-press instruction text
+### 2. 右上角导航
 
-### Right-Side Actions
-
-The right-side action area is reduced to a single like button:
-
-- Keep one like icon button only.
-- Remove avatar.
-- Remove any Douyin/TikTok-style decorative action items.
-- Keep the existing like state and pending state behavior.
-
-### Bottom Progress And Time
-
-- Keep a very thin progress line at the bottom edge of the player.
-- Keep time text.
-- Remove all other bottom helper text.
-
-The progress indicator must stay visually light so the video remains dominant.
-
-## Long-Press 2x Interaction
-
-Long-press remains the mechanism for temporary 2x playback, but the visual and browser behavior changes:
-
-- The player must not trigger browser-native text selection.
-- The player must not trigger browser-native long-press callouts, context popups, or selection handles.
-- During active long press, show only one custom status label: `2 倍速播放中`.
-- That status label is horizontally centered and positioned higher than the current implementation.
-- The label appears only while 2x mode is active and disappears immediately when long press ends.
-
-Implementation expectations:
-
-- Apply `user-select: none` and equivalent platform-specific protections on player-interactive layers.
-- Prevent default long-press/context-menu behavior in the player surface.
-- Keep seek bar and explicit button interactions working.
-
-## Liked List Page
-
-The liked section remains list-first:
-
-- Clicking `我的` always opens the liked list page first.
-- Clicking an item from the liked list opens the player for that selected liked video.
-- From that player, clicking `我的` returns to the liked list page.
-
-### Liked List Presentation
-
-The liked list page is simplified to a content-first layout:
-
-- Remove large hero titles.
-- Remove explanatory copy.
-- Remove block-style intro sections.
-- Keep the page visually lighter and more direct.
-- Preserve the video-grid/list browsing behavior.
-- Keep only the minimum identifying information needed for item recognition.
-
-### Shared Navigation Language
-
-The liked list page uses the same top-right text navigation language as the player:
+右上角固定显示两个文字按钮：
 
 - `首页`
 - `我的`
 
-This keeps the home-to-liked transition visually coherent even though the liked area remains a list page.
+规则如下：
 
-## Routing And State Rules
+- 在首页随机视频流里，高亮 `首页`
+- 在从“我的喜欢”点进来的播放器里，高亮 `我的`
+- 点 `首页`，进入首页随机视频流
+- 点 `我的`，进入我的喜欢列表页
 
-- Home feed keeps its current random stream behavior and current paging strategy.
-- Home feed should retain the current playback position when navigating away and back.
-- Liked list remains a separate page from liked-player playback.
-- Browser back behavior should remain natural:
-  - liked list -> liked player -> browser back returns to liked list
-  - switching between `首页` and `我的` follows the route stack already established by the app
+这里明确一点：
 
-## Affected Frontend Areas
+- `我的` 不是直接进喜欢视频流
+- `我的` 永远先进喜欢列表页
 
-Primary files expected to change during implementation:
+### 3. 左下角信息
+
+左下角只保留两行：
+
+- 文件名称
+- 当前目录
+
+以下信息全部去掉：
+
+- 作者名
+- 描述文案
+- 说明文字
+- 长按提示文字
+
+### 4. 右侧操作区
+
+右侧只保留一个喜欢按钮：
+
+- 只保留喜欢图标
+- 去掉头像
+- 去掉抖音风格装饰元素
+- 去掉其它动作按钮
+
+点赞的已有逻辑不变：
+
+- 已点赞状态还在
+- 请求中的 pending 状态还在
+
+### 5. 底部进度与时间
+
+底部保留：
+
+- 一条很细的进度线
+- 时间文字
+
+去掉：
+
+- 其它底部提示文字
+- “按住 2x 倍速”之类文案
+
+这里采用你选的 `B` 方案：
+
+- 画面保持极简
+- 但仍然保留一条很轻的底部进度线和时间信息
+
+## 六、长按 2 倍速怎么改
+
+长按仍然用于临时 2 倍速播放，但交互要调整。
+
+### 1. 要达到的效果
+
+- 长按时不能再出现浏览器默认的文字选中效果
+- 不能再出现长按弹框、选中气泡、系统 callout 之类东西
+- 长按时只显示我们自己的提示文字：`2 倍速播放中`
+- 这个提示文字要水平居中
+- 这个提示文字的位置要比现在更高一些
+- 松手后提示立即消失
+
+### 2. 实现边界
+
+实现时要确保：
+
+- 播放器区域不可被文字选中
+- 播放器层要拦截默认的长按/上下文行为
+- 但不能影响正常点击
+- 也不能影响进度条拖动
+
+## 七、“我的喜欢”列表页怎么改
+
+### 1. 页面定位不变
+
+“我的”还是喜欢列表页，不是视频流。
+
+规则如下：
+
+- 点右上角 `我的`，进入喜欢列表页
+- 在喜欢列表页点某个视频，进入该视频播放器
+- 从“我的”分区播放器里再点 `我的`，回到喜欢列表页
+
+### 2. 页面样式改简洁
+
+喜欢列表页去掉现在那些重的介绍性内容：
+
+- 去掉大标题
+- 去掉说明文案
+- 去掉大块状介绍区域
+
+保留的核心内容：
+
+- 视频列表/网格
+- 必要的识别信息
+- 点击进入播放
+
+也就是说，页面会更干净，更像“直接挑视频”，而不是“先看一段介绍再操作”。
+
+### 3. 导航语言统一
+
+喜欢列表页也统一使用同样的导航语言：
+
+- `首页`
+- `我的`
+
+这样首页、喜欢列表页、喜欢播放器页这三处的切换会更统一。
+
+## 八、路由和切换规则
+
+下面这些行为保持不变，只做样式和交互优化：
+
+- 首页仍然是随机视频流
+- 从首页切出去再回来，尽量保持当前播放位置
+- “我的”仍然是列表页
+- 从列表页进入播放器，再按返回，应当回到列表页
+
+路由规则明确如下：
+
+- 首页播放器中点 `首页`：留在首页随机视频流
+- 首页播放器中点 `我的`：进入喜欢列表页
+- 喜欢列表页点某个视频：进入喜欢播放器页
+- 喜欢播放器页点 `我的`：回喜欢列表页
+- 喜欢播放器页点 `首页`：切回首页随机视频流
+
+## 九、这次主要会动哪些文件
+
+实现时主要会改这些前端文件：
 
 - `dist/assets/js/components/player.mjs`
 - `dist/assets/js/components/likes-grid.mjs`
 - `dist/assets/js/app.mjs`
 - `dist/assets/styles.css`
 
-No new frontend architecture is required. The implementation should adapt the existing rendering and routing structure.
+不需要新建一套前端架构，直接在现有结构上改。
 
-## Error Handling And Edge Cases
+## 十、边界情况
 
-- If there are no home videos, the existing empty-state route behavior may stay, but it should not reintroduce unnecessary heavy player chrome.
-- If there are no liked videos, the liked empty state may stay functionally intact, but copy and layout should remain minimal.
-- Long-press protection must not break seek interactions or top-right navigation clicks.
-- Like button pending state must still prevent duplicate mutations.
+实现时需要注意这些情况：
 
-## Testing And Verification
+- 如果首页没有视频，空状态页面不要重新塞回一堆重 UI
+- 如果我的喜欢为空，空状态也要保持简洁
+- 长按禁默认行为时，不能把进度条拖动搞坏
+- 长按禁默认行为时，不能把右上导航点击搞坏
+- 喜欢按钮的 pending 状态仍然要防止重复请求
 
-Implementation verification must cover:
+## 十一、验收标准
 
-- Home player renders without the old standalone header block or bottom nav block.
-- Top-right `首页 / 我的` navigation routes correctly in both home and liked contexts.
-- Left-bottom metadata shows only file name and directory.
-- Right side shows only the like button.
-- Bottom progress line remains thin and time text remains visible.
-- Long-press no longer triggers browser text selection or native callouts.
-- `2 倍速播放中` is centered and higher than the current chip position.
-- Liked list page still opens first from `我的`.
-- Opening a liked item still routes into liked-player playback and back out correctly.
-- Existing home paging behavior remains intact: batch size 5, load-more at the third visible item, max 3 attached video sources.
+改完后至少要验证这些点：
 
-## Scope Control
+- 首页播放器没有旧的独立头部块和底部导航块
+- 右上角固定显示 `首页 / 我的`
+- 首页里高亮 `首页`
+- 从我的列表点进播放器时高亮 `我的`
+- 左下角只显示文件名和目录
+- 右侧只剩喜欢按钮
+- 底部只保留细进度线和时间
+- 长按时不再出现浏览器默认选中和弹框
+- 长按时只显示 `2 倍速播放中`
+- 这个提示文字是居中的，而且位置比现在更高
+- 点 `我的` 仍然先进入喜欢列表页
+- 喜欢列表页点视频后还能正常进入播放器
+- 首页现有的分页和预载行为不被破坏
 
-To keep this task bounded, implementation should avoid:
+## 十二、范围控制
 
-- redesigning the feed data model
-- introducing a new router abstraction
-- changing the like API contract
-- redesigning unrelated status or empty-state screens unless required for consistency in the touched surfaces
+为了避免改散，这次实现时不要顺手做这些事：
 
-## Implementation Readiness
+- 不重构数据模型
+- 不重写路由系统
+- 不修改点赞接口协议
+- 不去改与本次界面无关的状态页和其它页面
 
-This spec is ready for implementation planning. There are no unresolved routing questions, unfinished sections, or conflicting interaction decisions remaining from the approved design conversation.
+## 十三、结论
+
+这份设计已经把本次改版要做什么、不做什么、页面怎么跳、长按怎么表现都定清楚了。下一步可以直接进入实现计划，不需要再补额外的需求澄清。
