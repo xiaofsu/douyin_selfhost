@@ -50,6 +50,18 @@ export function createSessionFeed(videos, random = Math.random) {
   return copy;
 }
 
+export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
+  if (!hasMore || isLoadingMore || loadedCount <= 0) {
+    return false;
+  }
+
+  return activeIndex >= Math.max(0, loadedCount - 3);
+}
+
+export function shouldAttachVideoSource(index, activeIndex, radius = 1) {
+  return Math.abs(index - activeIndex) <= radius;
+}
+
 export function resolvePlayerEntry(videos, awemeId) {
   if (!videos.length) {
     return { index: -1, video: null };

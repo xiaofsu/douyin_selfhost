@@ -1,4 +1,4 @@
-import { clamp, formatDuration, shouldAttachVideoSource } from '../core/state.mjs';
+import { clamp, formatDuration } from '../core/state.mjs';
 
 const HEART_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -31,7 +31,6 @@ export function createPlayerView(container, options) {
     onToggleLike,
     onOpenHome,
     onOpenLikesGrid,
-    onActiveIndexChange,
   } = options;
 
   let likedIds = initialLikedIds;
@@ -52,10 +51,10 @@ export function createPlayerView(container, options) {
         <article class="player-slide" data-player-slide data-index="${index}">
           <video
             class="player-video"
-            data-src="${escapeHtml(video.src)}"
+            src="${escapeHtml(video.src)}"
             playsinline
             muted
-            preload="none"
+            preload="metadata"
             loop
           ></video>
 
@@ -170,44 +169,6 @@ export function createPlayerView(container, options) {
     return videoNodes[activeIndex] ?? null;
   }
 
-  function attachVideoSource(video, index) {
-    const src = video?.dataset.src || videos[index]?.src || '';
-    if (!video || !src || video.getAttribute('src') === src) {
-      return;
-    }
-
-    video.setAttribute('src', src);
-    video.load();
-  }
-
-  function detachVideoSource(video) {
-    if (!video || !video.getAttribute('src')) {
-      return;
-    }
-
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-  }
-
-  function syncVideoSources() {
-    for (let index = 0; index < videoNodes.length; index += 1) {
-      const video = videoNodes[index];
-      if (!video) {
-        continue;
-      }
-
-      const shouldAttach = shouldAttachVideoSource(index, activeIndex);
-      video.preload = shouldAttach ? 'auto' : 'none';
-
-      if (shouldAttach) {
-        attachVideoSource(video, index);
-      } else {
-        detachVideoSource(video);
-      }
-    }
-  }
-
   function syncLikeButtons() {
     for (const button of likeButtons) {
       const awemeId = button?.getAttribute('data-aweme-id') || '';
@@ -256,8 +217,6 @@ export function createPlayerView(container, options) {
       return;
     }
 
-    attachVideoSource(video, activeIndex);
-
     video.muted = true;
     video.playsInline = true;
     video.playbackRate = fastMode ? 2 : 1;
@@ -270,14 +229,13 @@ export function createPlayerView(container, options) {
   }
 
   function pauseInactiveVideos() {
-    syncVideoSources();
-
     for (let index = 0; index < videoNodes.length; index += 1) {
       const video = videoNodes[index];
       if (!video) {
         continue;
       }
 
+      video.preload = Math.abs(index - activeIndex) <= 1 ? 'auto' : 'metadata';
       if (index !== activeIndex) {
         video.pause();
         video.playbackRate = 1;
@@ -325,7 +283,6 @@ export function createPlayerView(container, options) {
     syncProgress();
     writeLikesPlayerUrl();
     playActiveVideo();
-    onActiveIndexChange?.(activeIndex);
   }
 
   function setActiveIndex(nextIndex, options = {}) {

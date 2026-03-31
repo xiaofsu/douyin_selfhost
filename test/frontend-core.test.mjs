@@ -7,6 +7,8 @@ import {
   deriveNextLikedPlayerState,
   normalizeVideo,
   resolvePlayerEntry,
+  shouldAttachVideoSource,
+  shouldLoadMoreFeed,
 } from '../dist/assets/js/core/state.mjs';
 
 test('normalizeVideo extracts the client shape and liked status', () => {
@@ -89,4 +91,23 @@ test('clamp limits values for draggable seek calculations', () => {
   assert.equal(clamp(-0.5, 0, 1), 0);
   assert.equal(clamp(0.25, 0, 1), 0.25);
   assert.equal(clamp(1.5, 0, 1), 1);
+});
+
+test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {
+  assert.equal(shouldLoadMoreFeed(1, 5, true, false), false);
+  assert.equal(shouldLoadMoreFeed(2, 5, true, false), true);
+  assert.equal(shouldLoadMoreFeed(6, 10, true, false), false);
+  assert.equal(shouldLoadMoreFeed(7, 10, true, false), true);
+  assert.equal(shouldLoadMoreFeed(7, 10, false, false), false);
+  assert.equal(shouldLoadMoreFeed(7, 10, true, true), false);
+});
+
+test('shouldAttachVideoSource only keeps the active video and its immediate neighbors ready', () => {
+  assert.equal(shouldAttachVideoSource(0, 0), true);
+  assert.equal(shouldAttachVideoSource(1, 0), true);
+  assert.equal(shouldAttachVideoSource(2, 0), false);
+  assert.deepEqual(
+    [0, 1, 2, 3, 4].filter((index) => shouldAttachVideoSource(index, 2)),
+    [1, 2, 3],
+  );
 });

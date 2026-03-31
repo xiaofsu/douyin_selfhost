@@ -3,20 +3,26 @@ import { createLikesGridView } from './components/likes-grid.mjs';
 import { createPlayerView } from './components/player.mjs';
 import { navigate, parseRoute } from './core/router.mjs';
 import {
-  createSessionFeed,
   deriveNextLikedPlayerState,
   normalizeVideo,
   resolvePlayerEntry,
+  shouldLoadMoreFeed,
 } from './core/state.mjs';
 
 const root = document.querySelector('#app');
 const toast = document.querySelector('#toast');
+const HOME_BATCH_SIZE = 5;
 
 const state = {
   isLoading: true,
   error: '',
   isReady: false,
   homeFeed: [],
+  homeFeedSeed: '',
+  homeFeedTotal: 0,
+  homeHasMore: false,
+  homeIsLoadingMore: false,
+  homeActiveIndex: 0,
   likedVideos: [],
   likedIds: new Set(),
   pendingLikes: new Set(),
@@ -179,6 +185,51 @@ function showToast(message) {
   }, 2200);
 }
 
+function createFeedSeed() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function applyHomeFeedPage(page, likedIds, options = {}) {
+  const nextVideos = createNormalizedList(page.list, likedIds);
+
+  if (options.replace) {
+    state.homeFeed = nextVideos;
+  } else {
+    const existingIds = new Set(state.homeFeed.map((video) => video.awemeId));
+    const deduped = nextVideos.filter((video) => !existingIds.has(video.awemeId));
+    state.homeFeed = [...state.homeFeed, ...deduped];
+  }
+
+  state.homeFeedTotal = page.total;
+  state.homeHasMore = state.homeFeed.length < page.total;
+}
+
+async function loadMoreHomeFeed() {
+  if (state.homeIsLoadingMore || !state.homeHasMore || !state.homeFeedSeed) {
+    return;
+  }
+
+  state.homeIsLoadingMore = true;
+
+  try {
+    const page = await fetchRecommendedVideos({
+      start: state.homeFeed.length,
+      pageSize: HOME_BATCH_SIZE,
+      seed: state.homeFeedSeed,
+    });
+
+    applyHomeFeedPage(page, state.likedIds);
+
+    if (parseRoute(new URL(window.location.href)).name === 'home') {
+      renderCurrentRoute();
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '继续加载失败');
+  } finally {
+    state.homeIsLoadingMore = false;
+  }
+}
+
 async function loadInitialData(options = {}) {
   if (state.isReady && !options.force) {
     return;
@@ -189,9 +240,14 @@ async function loadInitialData(options = {}) {
   renderCurrentRoute();
 
   try {
+    const homeFeedSeed = createFeedSeed();
     const [likedRaw, recommendedRaw] = await Promise.all([
       fetchLikedVideos(),
-      fetchRecommendedVideos(500),
+      fetchRecommendedVideos({
+        start: 0,
+        pageSize: HOME_BATCH_SIZE,
+        seed: homeFeedSeed,
+      }),
     ]);
 
     const likedIds = likedSetFromRaw(likedRaw);
@@ -200,7 +256,12 @@ async function loadInitialData(options = {}) {
       ...video,
       liked: true,
     }));
-    state.homeFeed = createSessionFeed(createNormalizedList(recommendedRaw, likedIds));
+    state.homeFeedSeed = homeFeedSeed;
+    state.homeFeedTotal = 0;
+    state.homeHasMore = false;
+    state.homeIsLoadingMore = false;
+    state.homeActiveIndex = 0;
+    applyHomeFeedPage(recommendedRaw, likedIds, { replace: true });
     state.isReady = true;
     state.isLoading = false;
     state.error = '';
@@ -310,13 +371,20 @@ function renderCurrentRoute() {
 
     currentView = createPlayerView(root, {
       videos: state.homeFeed,
-      startIndex: 0,
+      startIndex: state.homeActiveIndex,
       activeTab: 'home',
       likedIds: state.likedIds,
       pendingLikes: state.pendingLikes,
       onToggleLike: handleToggleLike,
       onOpenHome: () => navigate('home'),
       onOpenLikesGrid: () => navigate('likes-grid'),
+      onActiveIndexChange: (index) => {
+        state.homeActiveIndex = index;
+
+        if (shouldLoadMoreFeed(index, state.homeFeed.length, state.homeHasMore, state.homeIsLoadingMore)) {
+          loadMoreHomeFeed();
+        }
+      },
     });
     return;
   }

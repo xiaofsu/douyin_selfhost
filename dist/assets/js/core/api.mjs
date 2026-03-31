@@ -10,6 +10,11 @@ function parseListPayload(payload) {
   return [];
 }
 
+function parseTotalPayload(payload) {
+  const total = payload?.data?.total ?? payload?.data?.video?.total ?? 0;
+  return Number.isFinite(total) ? total : Number(total) || 0;
+}
+
 async function requestJSON(url, options = {}) {
   const headers = new Headers(options.headers || {});
 
@@ -47,9 +52,27 @@ async function requestJSON(url, options = {}) {
   return payload;
 }
 
-export async function fetchRecommendedVideos(limit = 200) {
-  const payload = await requestJSON(`/video/recommended?start=0&pageSize=${limit}`);
-  return parseListPayload(payload);
+export function buildRecommendedVideosPath(options = {}) {
+  const { start = 0, pageSize = 5, seed = '' } =
+    typeof options === 'number' ? { pageSize: options } : options;
+  const params = new URLSearchParams({
+    start: String(start),
+    pageSize: String(pageSize),
+  });
+
+  if (seed) {
+    params.set('seed', seed);
+  }
+
+  return `/video/recommended?${params.toString()}`;
+}
+
+export async function fetchRecommendedVideos(options = {}) {
+  const payload = await requestJSON(buildRecommendedVideosPath(options));
+  return {
+    list: parseListPayload(payload),
+    total: parseTotalPayload(payload),
+  };
 }
 
 export async function fetchLikedVideos() {

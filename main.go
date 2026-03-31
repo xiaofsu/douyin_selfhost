@@ -416,6 +416,21 @@ func shuffleVideos(videos []map[string]interface{}, shuffle func(int, func(int, 
 	return shuffled
 }
 
+func shuffleVideosWithSeed(videos []map[string]interface{}, seed string) []map[string]interface{} {
+	if seed == "" {
+		return append([]map[string]interface{}(nil), videos...)
+	}
+
+	hash := md5.Sum([]byte(seed))
+	var seedValue int64
+	for _, b := range hash[:8] {
+		seedValue = (seedValue << 8) | int64(b)
+	}
+
+	rng := rand.New(rand.NewSource(seedValue))
+	return shuffleVideos(videos, rng.Shuffle)
+}
+
 func cloneJSONObject(src map[string]interface{}) map[string]interface{} {
 	if src == nil {
 		return map[string]interface{}{}
@@ -741,6 +756,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	
 	startStr := r.URL.Query().Get("start")
 	pageSizeStr := r.URL.Query().Get("pageSize")
+	seed := r.URL.Query().Get("seed")
 	start := 0
 	pageSize := 10
 	if startStr != "" {
@@ -748,6 +764,12 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if pageSizeStr != "" {
 		fmt.Sscanf(pageSizeStr, "%d", &pageSize)
+	}
+	if start < 0 {
+		start = 0
+	}
+	if pageSize <= 0 || pageSize > 5 {
+		pageSize = 5
 	}
 
 	// Fallback to scanned media
@@ -757,8 +779,12 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	videos = shuffleVideos(videos, rng.Shuffle)
+	if seed != "" {
+		videos = shuffleVideosWithSeed(videos, seed)
+	} else {
+		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		videos = shuffleVideos(videos, rng.Shuffle)
+	}
 	total = len(videos)
 	end := start + pageSize
 	if end > total {
