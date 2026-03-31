@@ -18,6 +18,7 @@ test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () =
     videos: [sampleVideo],
     activeTab: 'home',
     startIndex: 0,
+    soundEnabled: false,
   });
 
   assert.equal(html.includes('按住 2x 倍速'), false);
@@ -29,6 +30,7 @@ test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () =
   assert.equal(html.includes('首页'), true);
   assert.equal(html.includes('我的'), true);
   assert.equal(html.includes('2 倍速播放中'), true);
+  assert.equal(html.includes('data-toggle-mute'), true);
   assert.equal(html.includes('lesson-07.mp4'), true);
   assert.equal(html.includes('/media/piano/classroom'), true);
 });
@@ -38,12 +40,24 @@ test('renderPlayerMarkup highlights 我的 on liked-player routes', () => {
     videos: [sampleVideo],
     activeTab: 'likes',
     startIndex: 0,
+    soundEnabled: false,
   });
 
   assert.equal(html.includes('data-nav-home'), true);
   assert.equal(html.includes('data-nav-likes'), true);
   assert.equal(html.includes('data-player-top-nav'), true);
   assert.match(html, /floating-nav-link is-active"[\s\S]*data-nav-likes[\s\S]*>我的<\/button>/);
+});
+
+test('renderPlayerMarkup hides the mute toggle after audio is enabled', () => {
+  const html = renderPlayerMarkup({
+    videos: [sampleVideo],
+    activeTab: 'home',
+    startIndex: 0,
+    soundEnabled: true,
+  });
+
+  assert.match(html, /action-button action-button--mute is-hidden/);
 });
 
 test('renderLikesGridMarkup removes hero copy and keeps compact top nav', () => {

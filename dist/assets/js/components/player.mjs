@@ -2,12 +2,21 @@ import {
   clamp,
   describeVideoPath,
   formatDuration,
+  seekRatioFromPointer,
   shouldAttachVideoSource,
 } from '../core/state.mjs';
 
 const HEART_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 21.35 10.55 20C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"></path>
+  </svg>
+`;
+
+const VOLUME_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M14.96 5.46a1 1 0 0 1 1.41 0A9 9 0 0 1 19 12a9 9 0 0 1-2.63 6.54 1 1 0 1 1-1.41-1.41A7 7 0 0 0 17 12a7 7 0 0 0-2.04-5.13 1 1 0 0 1 0-1.41Z"></path>
+    <path d="M12.84 7.59a1 1 0 0 1 1.42 0A6 6 0 0 1 16 12a6 6 0 0 1-1.74 4.41 1 1 0 1 1-1.42-1.41A4 4 0 0 0 14 12a4 4 0 0 0-1.16-2.99 1 1 0 0 1 0-1.42Z"></path>
+    <path d="M3 10a1 1 0 0 1 1-1h3.38l4.95-3.71A1 1 0 0 1 14 6v12a1 1 0 0 1-1.67.74L7.38 15H4a1 1 0 0 1-1-1v-4Zm2 1v2h2.71a1 1 0 0 1 .6.2l3.69 2.77V8.03L8.31 10.8a1 1 0 0 1-.6.2H5Z"></path>
   </svg>
 `;
 
@@ -20,7 +29,7 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function renderPlayerSlide(video, index) {
+function renderPlayerSlide(video, index, soundEnabled = false) {
   const { fileName, directory } = describeVideoPath(video);
 
   return `
@@ -52,14 +61,23 @@ function renderPlayerSlide(video, index) {
           <span class="action-icon">${HEART_ICON}</span>
           <span class="visually-hidden" data-like-text>喜欢</span>
         </button>
+        <button
+          class="action-button action-button--mute ${soundEnabled ? 'is-hidden' : ''}"
+          data-toggle-mute
+          type="button"
+          aria-label="解除静音"
+        >
+          <span class="action-icon">${VOLUME_ICON}</span>
+          <span class="visually-hidden">解除静音</span>
+        </button>
       </aside>
     </article>
   `;
 }
 
 export function renderPlayerMarkup(options) {
-  const { videos, activeTab = 'home' } = options;
-  const slides = videos.map((video, index) => renderPlayerSlide(video, index)).join('');
+  const { videos, activeTab = 'home', soundEnabled = false } = options;
+  const slides = videos.map((video, index) => renderPlayerSlide(video, index, soundEnabled)).join('');
 
   return `
     <div class="app-shell app-shell--player">
@@ -101,7 +119,7 @@ export function renderPlayerMarkup(options) {
               tabindex="0"
             >
               <span class="player-progress-fill" data-progress-fill></span>
-              <span class="player-progress-handle"></span>
+              <span class="player-progress-handle" data-progress-handle></span>
             </div>
             <div class="player-time">
               <span data-current-time>00:00</span>
@@ -137,12 +155,14 @@ export function createPlayerView(container, options) {
   let destroyed = false;
   let wheelLocked = false;
   let wasPlayingBeforeSeek = false;
+  let soundEnabled = false;
   const cleanups = [];
 
   container.innerHTML = renderPlayerMarkup({
     videos,
     startIndex,
     activeTab,
+    soundEnabled,
   });
 
   const stage = container.querySelector('[data-player-stage]');
@@ -150,11 +170,13 @@ export function createPlayerView(container, options) {
   const speedChip = container.querySelector('[data-speed-chip]');
   const progressBar = container.querySelector('[data-progress-bar]');
   const progressFill = container.querySelector('[data-progress-fill]');
+  const progressHandle = container.querySelector('[data-progress-handle]');
   const currentTimeNode = container.querySelector('[data-current-time]');
   const totalTimeNode = container.querySelector('[data-total-time]');
   const slideNodes = Array.from(container.querySelectorAll('[data-player-slide]'));
   const videoNodes = slideNodes.map((slide) => slide.querySelector('.player-video'));
   const likeButtons = slideNodes.map((slide) => slide.querySelector('[data-like-button]'));
+  const muteButtons = slideNodes.map((slide) => slide.querySelector('[data-toggle-mute]'));
 
   function currentVideo() {
     return videoNodes[activeIndex] ?? null;
@@ -221,11 +243,29 @@ export function createPlayerView(container, options) {
     }
   }
 
+  function syncMuteButtons() {
+    for (const button of muteButtons) {
+      if (!button) {
+        continue;
+      }
+
+      button.classList.toggle('is-hidden', soundEnabled);
+      button.tabIndex = soundEnabled ? -1 : 0;
+      button.setAttribute('aria-hidden', soundEnabled ? 'true' : 'false');
+    }
+  }
+
+  function syncProgressUi(ratio) {
+    const percentage = `${ratio * 100}%`;
+    progressFill.style.width = percentage;
+    progressHandle.style.left = percentage;
+    progressBar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+  }
+
   function syncProgress() {
     const video = currentVideo();
     if (!video) {
-      progressFill.style.width = '0%';
-      progressBar.setAttribute('aria-valuenow', '0');
+      syncProgressUi(0);
       currentTimeNode.textContent = '00:00';
       totalTimeNode.textContent = '00:00';
       return;
@@ -235,8 +275,7 @@ export function createPlayerView(container, options) {
     const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
     const ratio = duration > 0 ? currentTime / duration : 0;
 
-    progressFill.style.width = `${ratio * 100}%`;
-    progressBar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+    syncProgressUi(ratio);
     currentTimeNode.textContent = formatDuration(currentTime);
     totalTimeNode.textContent = formatDuration(duration);
   }
@@ -249,13 +288,24 @@ export function createPlayerView(container, options) {
 
     attachVideoSource(video, activeIndex);
 
-    video.muted = true;
+    video.muted = !soundEnabled;
     video.playsInline = true;
     video.playbackRate = fastMode ? 2 : 1;
 
     try {
       await video.play();
     } catch (_error) {
+      if (soundEnabled) {
+        soundEnabled = false;
+        syncMuteButtons();
+        video.muted = true;
+        try {
+          await video.play();
+        } catch (_nestedError) {
+          // Ignore autoplay restrictions. The user can resume by interacting.
+        }
+        return;
+      }
       // Ignore autoplay restrictions. The user can resume by interacting.
     }
   }
@@ -272,6 +322,7 @@ export function createPlayerView(container, options) {
       if (index !== activeIndex) {
         video.pause();
         video.playbackRate = 1;
+        video.muted = true;
       }
     }
   }
@@ -313,6 +364,7 @@ export function createPlayerView(container, options) {
 
     pauseInactiveVideos();
     syncLikeButtons();
+    syncMuteButtons();
     syncProgress();
     writeLikesPlayerUrl();
     playActiveVideo();
@@ -472,9 +524,8 @@ export function createPlayerView(container, options) {
 
   function updateSeekPosition(clientX) {
     const rect = progressBar.getBoundingClientRect();
-    const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
-    progressFill.style.width = `${ratio * 100}%`;
-    progressBar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+    const ratio = seekRatioFromPointer(clientX, rect.left, rect.width);
+    syncProgressUi(ratio);
 
     const video = currentVideo();
     if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
@@ -544,6 +595,17 @@ export function createPlayerView(container, options) {
     });
   }
 
+  function handleMuteClick(event) {
+    const button = event.target.closest('[data-toggle-mute]');
+    if (!button) {
+      return;
+    }
+
+    soundEnabled = true;
+    syncMuteButtons();
+    playActiveVideo();
+  }
+
   function bindClick(selector, handler) {
     for (const node of container.querySelectorAll(selector)) {
       node.addEventListener('click', handler);
@@ -572,6 +634,7 @@ export function createPlayerView(container, options) {
   stage.addEventListener('selectstart', suppressDefaultInteraction);
   stage.addEventListener('dragstart', suppressDefaultInteraction);
   container.addEventListener('click', handleLikeClick);
+  container.addEventListener('click', handleMuteClick);
   progressBar.addEventListener('pointerdown', handleSeekStart);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('resize', resizeHandler);
@@ -585,6 +648,7 @@ export function createPlayerView(container, options) {
   cleanups.push(() => stage.removeEventListener('selectstart', suppressDefaultInteraction));
   cleanups.push(() => stage.removeEventListener('dragstart', suppressDefaultInteraction));
   cleanups.push(() => container.removeEventListener('click', handleLikeClick));
+  cleanups.push(() => container.removeEventListener('click', handleMuteClick));
   cleanups.push(() => progressBar.removeEventListener('pointerdown', handleSeekStart));
   cleanups.push(() => window.removeEventListener('keydown', handleKeyDown));
   cleanups.push(() => window.removeEventListener('resize', resizeHandler));

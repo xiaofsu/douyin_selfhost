@@ -94,6 +94,14 @@ export function describeVideoPath(video) {
   };
 }
 
+export function seekRatioFromPointer(clientX, left, width) {
+  if (!Number.isFinite(width) || width <= 0) {
+    return 0;
+  }
+
+  return clamp((clientX - left) / width, 0, 1);
+}
+
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
   if (!hasMore || isLoadingMore || loadedCount <= 0) {
     return false;

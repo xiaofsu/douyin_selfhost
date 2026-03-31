@@ -8,6 +8,7 @@ import {
   deriveNextLikedPlayerState,
   normalizeVideo,
   resolvePlayerEntry,
+  seekRatioFromPointer,
   shouldAttachVideoSource,
   shouldLoadMoreFeed,
 } from '../dist/assets/js/core/state.mjs';
@@ -104,6 +105,12 @@ test('describeVideoPath extracts filename and directory from local media src', (
       directory: '/media/piano/classroom',
     },
   );
+});
+
+test('seekRatioFromPointer clamps the drag position to the progress bar width', () => {
+  assert.equal(seekRatioFromPointer(0, 100, 200), 0);
+  assert.equal(seekRatioFromPointer(200, 100, 200), 0.5);
+  assert.equal(seekRatioFromPointer(400, 100, 200), 1);
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {

@@ -546,6 +546,9 @@ img {
   top: 50%;
   right: 18px;
   transform: translateY(-50%);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
 }
 
 .action-button {
@@ -559,6 +562,15 @@ img {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(10, 10, 10, 0.26);
   backdrop-filter: blur(14px);
+}
+
+.action-button--mute {
+  width: 44px;
+  height: 44px;
+}
+
+.action-button--mute.is-hidden {
+  display: none;
 }
 
 .action-button.is-liked .action-icon {
@@ -614,6 +626,7 @@ img {
   height: 8px;
   display: flex;
   align-items: center;
+  touch-action: none;
 }
 
 .player-progress-bar::before {
@@ -640,7 +653,16 @@ img {
 }
 
 .player-progress-handle {
-  display: none;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.14);
 }
 
 .player-time {
