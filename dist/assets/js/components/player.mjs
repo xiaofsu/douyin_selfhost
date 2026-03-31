@@ -193,11 +193,42 @@ export function resolveFastModeViewState(isFastMode) {
   };
 }
 
+export function createPlaybackSnapshot(activeVideo, progressSnapshot = {}) {
+  const awemeId = String(activeVideo?.awemeId ?? '').trim();
+  if (!awemeId) {
+    return null;
+  }
+
+  const currentTime = Number.isFinite(progressSnapshot.currentTime) && progressSnapshot.currentTime >= 0
+    ? progressSnapshot.currentTime
+    : 0;
+
+  return {
+    awemeId,
+    currentTime,
+  };
+}
+
+export function resolvePlaybackResumeTime(snapshot, activeVideo, duration) {
+  const awemeId = String(activeVideo?.awemeId ?? '').trim();
+  if (!snapshot || !awemeId || snapshot.awemeId !== awemeId) {
+    return null;
+  }
+
+  const nextTime = Number.isFinite(snapshot.currentTime) && snapshot.currentTime >= 0
+    ? snapshot.currentTime
+    : 0;
+  const safeDuration = Number.isFinite(duration) && duration >= 0 ? duration : nextTime;
+
+  return clamp(nextTime, 0, safeDuration);
+}
+
 export function createPlayerView(container, options) {
   const {
     videos,
     startIndex = 0,
     activeTab = 'home',
+    initialPlaybackSnapshot = null,
     likedIds: initialLikedIds = new Set(),
     pendingLikes: initialPendingLikes = new Set(),
     soundEnabled: initialSoundEnabled = false,
@@ -220,6 +251,7 @@ export function createPlayerView(container, options) {
   let wasPlayingBeforeSeek = false;
   let awaitingSeekCommit = false;
   let pendingSeekRatio = null;
+  let pendingInitialPlaybackSnapshot = initialPlaybackSnapshot;
   let committedProgress = sanitizeProgressSnapshot();
   let soundEnabled = initialSoundEnabled;
   const cleanups = [];
@@ -354,6 +386,31 @@ export function createPlayerView(container, options) {
   function clearPendingSeekState() {
     awaitingSeekCommit = false;
     pendingSeekRatio = null;
+  }
+
+  function applyInitialPlaybackSnapshot(video, index) {
+    if (!pendingInitialPlaybackSnapshot || index !== activeIndex) {
+      return;
+    }
+
+    const snapshot = pendingInitialPlaybackSnapshot;
+    pendingInitialPlaybackSnapshot = null;
+
+    const resumeTime = resolvePlaybackResumeTime(snapshot, videos[index], video.duration);
+    if (resumeTime === null || resumeTime <= 0) {
+      return;
+    }
+
+    awaitingSeekCommit = true;
+    pendingSeekRatio = video.duration > 0 ? clamp(resumeTime / video.duration, 0, 1) : 0;
+    committedProgress = sanitizeProgressSnapshot({
+      duration: video.duration,
+      currentTime: resumeTime,
+      ratio: pendingSeekRatio,
+    });
+
+    video.currentTime = resumeTime;
+    renderProgressSnapshot(committedProgress);
   }
 
   function renderProgressSnapshot(snapshot) {
@@ -808,6 +865,7 @@ export function createPlayerView(container, options) {
 
     const handleLoadedMetadata = () => {
       syncVideoFitMode(video);
+      applyInitialPlaybackSnapshot(video, index);
       syncIfActive();
     };
 
@@ -851,6 +909,15 @@ export function createPlayerView(container, options) {
       likedIds = nextLikedIds;
       pendingLikes = nextPendingLikes;
       syncLikeButtons();
+    },
+    getPlaybackSnapshot() {
+      const activeVideo = videos[activeIndex];
+      const videoNode = currentVideo();
+      if (!activeVideo || !videoNode) {
+        return null;
+      }
+
+      return createPlaybackSnapshot(activeVideo, captureProgressSnapshot(videoNode));
     },
   };
 }

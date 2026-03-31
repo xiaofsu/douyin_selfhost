@@ -31,13 +31,17 @@ test('backend startup code does not reference legacy posts6 fallback paths', asy
   assert.equal(mainGo.includes('Trying src path'), false);
 });
 
-test('home navigation refreshes the home feed instead of only switching route', async () => {
+test('home navigation refreshes only on the home route and resumes from likes routes', async () => {
   const appScript = await read('dist/assets/js/app.mjs');
 
-  assert.equal(appScript.includes('async function handleOpenHomeRefresh()'), true);
-  assert.equal(appScript.includes("bind('[data-open-home]', handleOpenHomeRefresh);"), true);
-  assert.equal(appScript.includes('onOpenHome: handleOpenHomeRefresh,'), true);
+  assert.equal(appScript.includes('async function handleOpenHomeRequest()'), true);
+  assert.equal(appScript.includes('const navigationIntent = resolveHomeNavigationIntent(currentRoute.name);'), true);
+  assert.equal(appScript.includes("bind('[data-open-home]', handleOpenHomeRequest);"), true);
+  assert.equal(appScript.includes('onOpenHome: handleOpenHomeRequest,'), true);
+  assert.equal(appScript.includes("if (navigationIntent === 'resume') {"), true);
+  assert.equal(appScript.includes("navigate('home');"), true);
   assert.equal(appScript.includes('loadInitialData({ force: true })'), true);
+  assert.equal(appScript.includes('homePlaybackSnapshot'), true);
 });
 
 test('ios standalone metadata is present for status-bar coverage', async () => {

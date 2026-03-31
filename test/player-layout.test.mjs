@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs';
 
 import {
   canCommitPendingSeek,
+  createPlaybackSnapshot,
   renderPlayerMarkup,
   resolveFastModeViewState,
+  resolvePlaybackResumeTime,
   resolveDisplayedProgressSnapshot,
 } from '../dist/assets/js/components/player.mjs';
 import { renderLikesGridMarkup } from '../dist/assets/js/components/likes-grid.mjs';
@@ -108,6 +110,32 @@ test('resolveFastModeViewState hides player chrome during long-press playback', 
     chromeHidden: true,
     speedChipActive: true,
   });
+});
+
+test('createPlaybackSnapshot captures the active video progress for home resume', () => {
+  assert.deepEqual(
+    createPlaybackSnapshot({ awemeId: 'abc123' }, { currentTime: 18.4 }),
+    {
+      awemeId: 'abc123',
+      currentTime: 18.4,
+    },
+  );
+  assert.equal(createPlaybackSnapshot({ awemeId: '' }, { currentTime: 18.4 }), null);
+});
+
+test('resolvePlaybackResumeTime only restores matching videos and clamps the target time', () => {
+  assert.equal(
+    resolvePlaybackResumeTime({ awemeId: 'abc123', currentTime: 18.4 }, { awemeId: 'abc123' }, 60),
+    18.4,
+  );
+  assert.equal(
+    resolvePlaybackResumeTime({ awemeId: 'abc123', currentTime: 100 }, { awemeId: 'abc123' }, 60),
+    60,
+  );
+  assert.equal(
+    resolvePlaybackResumeTime({ awemeId: 'else', currentTime: 18.4 }, { awemeId: 'abc123' }, 60),
+    null,
+  );
 });
 
 test('player fast mode styles hide chrome and scrim while keeping the video visible', () => {

@@ -6,6 +6,7 @@ import {
   createHomeRefreshState,
   deriveNextLikedPlayerState,
   normalizeVideo,
+  resolveHomeNavigationIntent,
   resolvePlayerEntry,
   shouldLoadMoreFeed,
 } from './core/state.mjs';
@@ -24,6 +25,7 @@ const state = {
   homeHasMore: false,
   homeIsLoadingMore: false,
   homeActiveIndex: 0,
+  homePlaybackSnapshot: null,
   soundEnabled: false,
   likedVideos: [],
   likedIds: new Set(),
@@ -110,6 +112,10 @@ function applyOptimisticLike(video, nextLiked) {
 }
 
 function destroyCurrentView() {
+  if (typeof currentView?.getHomePlaybackSnapshot === 'function') {
+    state.homePlaybackSnapshot = currentView.getHomePlaybackSnapshot();
+  }
+
   currentView?.destroy?.();
   currentView = null;
   root.innerHTML = '';
@@ -163,7 +169,7 @@ function mountStatusView(options) {
     }
   };
 
-  bind('[data-open-home]', handleOpenHomeRefresh);
+  bind('[data-open-home]', handleOpenHomeRequest);
   bind('[data-open-likes-grid]', () => navigate('likes-grid'));
 
   if (onAction) {
@@ -208,6 +214,18 @@ async function handleOpenHomeRefresh() {
   navigate('home', { replace: currentRoute.name === 'home' });
 
   await loadInitialData({ force: true });
+}
+
+async function handleOpenHomeRequest() {
+  const currentRoute = parseRoute(new URL(window.location.href));
+  const navigationIntent = resolveHomeNavigationIntent(currentRoute.name);
+
+  if (navigationIntent === 'resume') {
+    navigate('home');
+    return;
+  }
+
+  await handleOpenHomeRefresh();
 }
 
 function applyHomeFeedPage(page, likedIds, options = {}) {
@@ -386,15 +404,16 @@ function renderCurrentRoute() {
       return;
     }
 
-    currentView = createPlayerView(root, {
+    const playerView = createPlayerView(root, {
       videos: state.homeFeed,
       startIndex: state.homeActiveIndex,
       activeTab: 'home',
+      initialPlaybackSnapshot: state.homePlaybackSnapshot,
       likedIds: state.likedIds,
       pendingLikes: state.pendingLikes,
       soundEnabled: state.soundEnabled,
       onToggleLike: handleToggleLike,
-      onOpenHome: handleOpenHomeRefresh,
+      onOpenHome: handleOpenHomeRequest,
       onOpenLikesGrid: () => navigate('likes-grid'),
       onSoundEnabledChange: (enabled) => {
         state.soundEnabled = enabled;
@@ -407,6 +426,10 @@ function renderCurrentRoute() {
         }
       },
     });
+    currentView = {
+      ...playerView,
+      getHomePlaybackSnapshot: () => playerView.getPlaybackSnapshot(),
+    };
     return;
   }
 
@@ -414,7 +437,7 @@ function renderCurrentRoute() {
     currentView = createLikesGridView(root, {
       videos: state.likedVideos,
       onOpenVideo: (playId) => navigate('likes-player', { playId }),
-      onOpenHome: handleOpenHomeRefresh,
+      onOpenHome: handleOpenHomeRequest,
       onOpenLikesGrid: () => navigate('likes-grid'),
     });
     return;
@@ -439,7 +462,7 @@ function renderCurrentRoute() {
     pendingLikes: state.pendingLikes,
     soundEnabled: state.soundEnabled,
     onToggleLike: handleToggleLike,
-    onOpenHome: handleOpenHomeRefresh,
+    onOpenHome: handleOpenHomeRequest,
     onOpenLikesGrid: () => navigate('likes-grid'),
     onSoundEnabledChange: (enabled) => {
       state.soundEnabled = enabled;

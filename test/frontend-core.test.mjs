@@ -8,6 +8,7 @@ import {
   describeVideoPath,
   deriveNextLikedPlayerState,
   normalizeVideo,
+  resolveHomeNavigationIntent,
   resolvePlayerVideoFit,
   resolvePlayerVideoObjectPositionY,
   resolveSoundPreference,
@@ -68,8 +69,15 @@ test('createHomeRefreshState resets home feed paging and playback for a full rep
     homeHasMore: false,
     homeIsLoadingMore: false,
     homeActiveIndex: 0,
+    homePlaybackSnapshot: null,
     soundEnabled: false,
   });
+});
+
+test('resolveHomeNavigationIntent refreshes only when the viewer is already on home', () => {
+  assert.equal(resolveHomeNavigationIntent('home'), 'refresh');
+  assert.equal(resolveHomeNavigationIntent('likes-grid'), 'resume');
+  assert.equal(resolveHomeNavigationIntent('likes-player'), 'resume');
 });
 
 test('resolvePlayerEntry prefers the requested aweme id and falls back to the first item', () => {

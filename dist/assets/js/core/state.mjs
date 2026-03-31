@@ -58,8 +58,13 @@ export function createHomeRefreshState(seed = '') {
     homeHasMore: false,
     homeIsLoadingMore: false,
     homeActiveIndex: 0,
+    homePlaybackSnapshot: null,
     soundEnabled: false,
   };
+}
+
+export function resolveHomeNavigationIntent(routeName) {
+  return routeName === 'home' ? 'refresh' : 'resume';
 }
 
 export function resolvePlayerVideoFit(videoWidth, videoHeight) {
