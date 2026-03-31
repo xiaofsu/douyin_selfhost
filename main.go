@@ -13,6 +13,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -213,19 +214,19 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 				"nickname":  "Local User",
 				"unique_id": "local_user_id",
 				"avatar_thumb": map[string]interface{}{
-					"url_list": []string{avatar_dataurl},
+					"url_list": []string{""},
 				},
 				"avatar_medium": map[string]interface{}{
-					"url_list": []string{avatar_dataurl},
+					"url_list": []string{""},
 				},
 				"avatar_large": map[string]interface{}{
-					"url_list": []string{avatar_dataurl},
+					"url_list": []string{""},
 				},
 				"avatar_168x168": map[string]interface{}{
-					"url_list": []string{avatar_dataurl},
+					"url_list": []string{""},
 				},
 				"avatar_larger": map[string]interface{}{
-					"url_list": []string{avatar_dataurl},
+					"url_list": []string{""},
 				},
 				"cover_url": []map[string]interface{}{
 					{
@@ -748,6 +749,7 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(finalResp)
 }
+
 func main() {
 	var staticPath string
 	var indexPath string

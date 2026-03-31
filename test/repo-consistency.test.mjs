@@ -56,6 +56,14 @@ test('backend only keeps the API routes used by the built-in frontend', async ()
   }
 });
 
+test('backend media scanner has no orphaned legacy avatar dependency', async () => {
+  const mainGo = await read('main.go');
+
+  assert.equal(mainGo.includes('"net/url"'), true);
+  assert.equal(mainGo.includes('avatar_dataurl'), false);
+  assert.equal(mainGo.includes('[]string{""}'), true);
+});
+
 test('home navigation refreshes only on the home route and resumes from likes routes', async () => {
   const appScript = await read('dist/assets/js/app.mjs');
 
