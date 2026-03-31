@@ -1,7 +1,9 @@
 import {
+  calculateTransferSpeedMbps,
   clamp,
   describeVideoPath,
   formatDuration,
+  resolveNetworkSpeedLabel,
   resolvePlayerVideoFit,
   resolvePlayerVideoObjectPositionY,
   resolveSoundPreference,
@@ -24,6 +26,8 @@ const VOLUME_ICON = `
 `;
 
 const SEEK_COMMIT_READY_STATE = 2;
+const SPEED_PROBE_BYTES = 96 * 1024;
+const SPEED_PROBE_INTERVAL_MS = 8000;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -93,6 +97,8 @@ export function renderPlayerMarkup(options) {
           <div class="player-track" data-player-track>
             ${slides}
           </div>
+
+          <div class="network-speed" data-network-speed aria-live="polite">测速中</div>
 
           <nav class="floating-nav player-top-nav" data-player-top-nav data-ignore-gesture>
             <button
@@ -254,7 +260,16 @@ export function createPlayerView(container, options) {
   let pendingInitialPlaybackSnapshot = initialPlaybackSnapshot;
   let committedProgress = sanitizeProgressSnapshot();
   let soundEnabled = initialSoundEnabled;
+  let connectionDownlinkMbps = null;
+  let measuredSpeedMbps = null;
+  let speedProbeTimer = 0;
+  let speedProbeRunId = 0;
+  let speedProbeAbortController = null;
   const cleanups = [];
+  const connection = globalThis.navigator?.connection
+    ?? globalThis.navigator?.mozConnection
+    ?? globalThis.navigator?.webkitConnection
+    ?? null;
 
   container.innerHTML = renderPlayerMarkup({
     videos,
@@ -265,6 +280,7 @@ export function createPlayerView(container, options) {
 
   const stage = container.querySelector('[data-player-stage]');
   const track = container.querySelector('[data-player-track]');
+  const networkSpeedNode = container.querySelector('[data-network-speed]');
   const speedChip = container.querySelector('[data-speed-chip]');
   const progressBar = container.querySelector('[data-progress-bar]');
   const progressFill = container.querySelector('[data-progress-fill]');
@@ -278,6 +294,176 @@ export function createPlayerView(container, options) {
 
   function currentVideo() {
     return videoNodes[activeIndex] ?? null;
+  }
+
+  function readConnectionDownlink() {
+    const downlink = Number(connection?.downlink);
+    return Number.isFinite(downlink) && downlink > 0 ? downlink : null;
+  }
+
+  function currentVideoUrl() {
+    const video = currentVideo();
+    return video?.currentSrc || video?.getAttribute('src') || video?.dataset.src || videos[activeIndex]?.src || '';
+  }
+
+  function syncNetworkSpeedUi() {
+    if (!networkSpeedNode) {
+      return;
+    }
+
+    networkSpeedNode.textContent = resolveNetworkSpeedLabel({
+      measuredMbps: measuredSpeedMbps,
+      connectionDownlinkMbps,
+    });
+  }
+
+  function readResourceSpeed(url) {
+    if (!url || typeof globalThis.performance?.getEntriesByType !== 'function') {
+      return null;
+    }
+
+    let absoluteUrl = '';
+    try {
+      absoluteUrl = new URL(url, globalThis.location?.href || 'http://localhost').href;
+    } catch (_error) {
+      absoluteUrl = url;
+    }
+
+    const entries = globalThis.performance.getEntriesByType('resource');
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (!entry?.name || !entry.name.startsWith(absoluteUrl)) {
+        continue;
+      }
+
+      const transferSize = Number(entry.transferSize ?? entry.encodedBodySize ?? entry.decodedBodySize ?? 0);
+      const duration = Number(entry.duration ?? 0);
+      const speedMbps = calculateTransferSpeedMbps(transferSize, duration);
+      if (speedMbps > 0) {
+        return speedMbps;
+      }
+    }
+
+    return null;
+  }
+
+  async function probeNetworkSpeed(url, signal) {
+    if (!url || typeof globalThis.fetch !== 'function') {
+      return null;
+    }
+
+    const probeUrl = new URL(url, globalThis.location?.href || 'http://localhost');
+    probeUrl.searchParams.set('__speed_probe', `${Date.now()}`);
+
+    const startedAt = globalThis.performance?.now?.() ?? Date.now();
+    const response = await globalThis.fetch(probeUrl, {
+      cache: 'no-store',
+      headers: {
+        Range: `bytes=0-${SPEED_PROBE_BYTES - 1}`,
+      },
+      signal,
+    });
+
+    if (!response.ok && response.status !== 206) {
+      return null;
+    }
+
+    const reader = response.body?.getReader?.();
+    if (!reader) {
+      const buffer = await response.arrayBuffer();
+      const duration = (globalThis.performance?.now?.() ?? Date.now()) - startedAt;
+      return calculateTransferSpeedMbps(buffer.byteLength, duration);
+    }
+
+    let totalBytes = 0;
+    try {
+      while (totalBytes < SPEED_PROBE_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        totalBytes += value?.byteLength ?? 0;
+      }
+    } finally {
+      try {
+        await reader.cancel();
+      } catch (_error) {
+        // Ignore reader cancellation errors.
+      }
+    }
+
+    const duration = (globalThis.performance?.now?.() ?? Date.now()) - startedAt;
+    return calculateTransferSpeedMbps(totalBytes, duration);
+  }
+
+  function cancelNetworkSpeedRefresh() {
+    globalThis.clearTimeout(speedProbeTimer);
+    speedProbeTimer = 0;
+    speedProbeRunId += 1;
+    speedProbeAbortController?.abort();
+    speedProbeAbortController = null;
+  }
+
+  function scheduleNetworkSpeedRefresh(delay = SPEED_PROBE_INTERVAL_MS) {
+    globalThis.clearTimeout(speedProbeTimer);
+    speedProbeTimer = globalThis.setTimeout(() => {
+      void refreshNetworkSpeed();
+    }, delay);
+  }
+
+  async function refreshNetworkSpeed() {
+    if (destroyed) {
+      return;
+    }
+
+    const runId = speedProbeRunId;
+    const url = currentVideoUrl();
+    connectionDownlinkMbps = readConnectionDownlink();
+    measuredSpeedMbps = readResourceSpeed(url);
+    syncNetworkSpeedUi();
+
+    if (!url || globalThis.document?.visibilityState === 'hidden') {
+      scheduleNetworkSpeedRefresh(SPEED_PROBE_INTERVAL_MS);
+      return;
+    }
+
+    const abortController = new AbortController();
+    speedProbeAbortController = abortController;
+
+    try {
+      const probedMbps = await probeNetworkSpeed(url, abortController.signal);
+      if (destroyed || runId !== speedProbeRunId || abortController.signal.aborted) {
+        return;
+      }
+
+      if (probedMbps > 0) {
+        measuredSpeedMbps = probedMbps;
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        measuredSpeedMbps = readResourceSpeed(url);
+      }
+    } finally {
+      if (speedProbeAbortController === abortController) {
+        speedProbeAbortController = null;
+      }
+    }
+
+    if (destroyed || runId !== speedProbeRunId) {
+      return;
+    }
+
+    connectionDownlinkMbps = readConnectionDownlink();
+    syncNetworkSpeedUi();
+    scheduleNetworkSpeedRefresh(SPEED_PROBE_INTERVAL_MS);
+  }
+
+  function resetNetworkSpeedRefresh(delay = 0) {
+    cancelNetworkSpeedRefresh();
+    connectionDownlinkMbps = readConnectionDownlink();
+    measuredSpeedMbps = readResourceSpeed(currentVideoUrl());
+    syncNetworkSpeedUi();
+    scheduleNetworkSpeedRefresh(delay);
   }
 
   function clearVideoFitMode(video) {
@@ -543,6 +729,7 @@ export function createPlayerView(container, options) {
     syncProgress();
     writeLikesPlayerUrl();
     playActiveVideo();
+    resetNetworkSpeedRefresh(120);
     onActiveIndexChange?.(activeIndex);
   }
 
@@ -823,6 +1010,15 @@ export function createPlayerView(container, options) {
   bindClick('[data-open-likes-grid]', () => onOpenLikesGrid());
 
   const resizeHandler = () => updateTrack({ immediate: true, force: true });
+  const visibilityHandler = () => {
+    if (globalThis.document?.visibilityState === 'visible') {
+      resetNetworkSpeedRefresh(0);
+    }
+  };
+  const connectionChangeHandler = () => {
+    connectionDownlinkMbps = readConnectionDownlink();
+    syncNetworkSpeedUi();
+  };
   stage.addEventListener('pointerdown', handleStagePointerDown);
   stage.addEventListener('pointermove', handleStagePointerMove);
   stage.addEventListener('pointerup', handleStagePointerEnd);
@@ -836,6 +1032,8 @@ export function createPlayerView(container, options) {
   progressBar.addEventListener('pointerdown', handleSeekStart);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('resize', resizeHandler);
+  globalThis.document?.addEventListener?.('visibilitychange', visibilityHandler);
+  connection?.addEventListener?.('change', connectionChangeHandler);
 
   cleanups.push(() => stage.removeEventListener('pointerdown', handleStagePointerDown));
   cleanups.push(() => stage.removeEventListener('pointermove', handleStagePointerMove));
@@ -850,6 +1048,9 @@ export function createPlayerView(container, options) {
   cleanups.push(() => progressBar.removeEventListener('pointerdown', handleSeekStart));
   cleanups.push(() => window.removeEventListener('keydown', handleKeyDown));
   cleanups.push(() => window.removeEventListener('resize', resizeHandler));
+  cleanups.push(() => globalThis.document?.removeEventListener?.('visibilitychange', visibilityHandler));
+  cleanups.push(() => connection?.removeEventListener?.('change', connectionChangeHandler));
+  cleanups.push(() => cancelNetworkSpeedRefresh());
 
   for (let index = 0; index < videoNodes.length; index += 1) {
     const video = videoNodes[index];

@@ -38,6 +38,8 @@ test('renderPlayerMarkup uses fullscreen overlay nav and minimal metadata', () =
   assert.equal(html.includes('Local User'), false);
   assert.equal(html.includes('首页'), true);
   assert.equal(html.includes('我的'), true);
+  assert.equal(html.includes('data-network-speed'), true);
+  assert.equal(html.includes('测速中'), true);
   assert.equal(html.includes('2 倍速播放中'), true);
   assert.equal(html.includes('data-toggle-mute'), true);
   assert.equal(html.includes('lesson-07.mp4'), true);
@@ -141,11 +143,18 @@ test('resolvePlaybackResumeTime only restores matching videos and clamps the tar
 test('player fast mode styles hide chrome and scrim while keeping the video visible', () => {
   assert.match(
     styles,
-    /\.player-stage\.is-fast-mode\s+\.player-top-nav,\s*\.player-stage\.is-fast-mode\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-actions,\s*\.player-stage\.is-fast-mode\s+\.player-progress,\s*\.player-stage\.is-fast-mode\s+\.player-scrim\s*\{[\s\S]*opacity:\s*0;[\s\S]*pointer-events:\s*none;/,
+    /\.player-stage\.is-fast-mode\s+\.player-top-nav,\s*\.player-stage\.is-fast-mode\s+\.network-speed,\s*\.player-stage\.is-fast-mode\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-actions,\s*\.player-stage\.is-fast-mode\s+\.player-progress,\s*\.player-stage\.is-fast-mode\s+\.player-scrim\s*\{[\s\S]*opacity:\s*0;[\s\S]*pointer-events:\s*none;/,
   );
   assert.match(
     styles,
     /\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-meta,\s*\.player-stage\.is-fast-mode\s+\.player-slide\.is-active\s+\.player-actions\s*\{[\s\S]*opacity:\s*0;/,
+  );
+});
+
+test('player network speed is pinned to the top-left with readable text styling', () => {
+  assert.match(
+    styles,
+    /\.network-speed\s*\{[\s\S]*top:\s*max\(18px,\s*calc\(env\(safe-area-inset-top\)\s*\+\s*6px\)\);[\s\S]*left:\s*18px;[\s\S]*text-shadow:\s*0\s+2px\s+12px\s+rgba\(0,\s*0,\s*0,\s*0\.45\);/,
   );
 });
 

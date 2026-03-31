@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  calculateTransferSpeedMbps,
   clamp,
   createHomeRefreshState,
   createSessionFeed,
   describeVideoPath,
   deriveNextLikedPlayerState,
+  resolveNetworkSpeedLabel,
   normalizeVideo,
   resolveHomeNavigationIntent,
   resolvePlayerVideoFit,
@@ -156,6 +158,30 @@ test('resolveSoundPreference keeps user-enabled audio across playback failures',
   assert.equal(resolveSoundPreference(false, 'enable'), true);
   assert.equal(resolveSoundPreference(true, 'playback-error'), true);
   assert.equal(resolveSoundPreference(true, 'disable'), false);
+});
+
+test('calculateTransferSpeedMbps converts bytes and duration into Mbps', () => {
+  assert.equal(calculateTransferSpeedMbps(1_250_000, 1000), 10);
+  assert.equal(calculateTransferSpeedMbps(0, 1000), 0);
+  assert.equal(calculateTransferSpeedMbps(1_250_000, 0), 0);
+});
+
+test('resolveNetworkSpeedLabel prefers measured speed and falls back to connection downlink', () => {
+  assert.equal(
+    resolveNetworkSpeedLabel({
+      measuredMbps: 12.36,
+      connectionDownlinkMbps: 8.8,
+    }),
+    '12.4 Mbps',
+  );
+  assert.equal(
+    resolveNetworkSpeedLabel({
+      measuredMbps: null,
+      connectionDownlinkMbps: 0.78,
+    }),
+    '780 Kbps',
+  );
+  assert.equal(resolveNetworkSpeedLabel({}), '测速中');
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {

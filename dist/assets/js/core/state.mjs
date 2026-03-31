@@ -2,6 +2,14 @@ export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+export function calculateTransferSpeedMbps(byteLength, durationMs) {
+  if (!Number.isFinite(byteLength) || byteLength <= 0 || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return 0;
+  }
+
+  return Number((((byteLength * 8) / durationMs) / 1000).toFixed(1));
+}
+
 function firstUrl(value) {
   if (!value) {
     return '';
@@ -155,6 +163,25 @@ export function resolveSoundPreference(currentSoundEnabled, action) {
   }
 
   return currentSoundEnabled;
+}
+
+function formatNetworkSpeed(speedMbps) {
+  if (!Number.isFinite(speedMbps) || speedMbps <= 0) {
+    return '';
+  }
+
+  if (speedMbps < 1) {
+    return `${Math.max(1, Math.round(speedMbps * 1000))} Kbps`;
+  }
+
+  return `${speedMbps.toFixed(1)} Mbps`;
+}
+
+export function resolveNetworkSpeedLabel(options = {}) {
+  const measuredMbps = Number(options.measuredMbps);
+  const connectionDownlinkMbps = Number(options.connectionDownlinkMbps);
+  const preferredSpeed = measuredMbps > 0 ? measuredMbps : connectionDownlinkMbps;
+  return formatNetworkSpeed(preferredSpeed) || '测速中';
 }
 
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
