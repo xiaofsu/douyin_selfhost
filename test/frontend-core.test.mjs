@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   clamp,
   createSessionFeed,
+  describeVideoPath,
   deriveNextLikedPlayerState,
   normalizeVideo,
   resolvePlayerEntry,
@@ -91,6 +92,18 @@ test('clamp limits values for draggable seek calculations', () => {
   assert.equal(clamp(-0.5, 0, 1), 0);
   assert.equal(clamp(0.25, 0, 1), 0.25);
   assert.equal(clamp(1.5, 0, 1), 1);
+});
+
+test('describeVideoPath extracts filename and directory from local media src', () => {
+  assert.deepEqual(
+    describeVideoPath({
+      src: '/media/piano/classroom/lesson-07.mp4',
+    }),
+    {
+      fileName: 'lesson-07.mp4',
+      directory: '/media/piano/classroom',
+    },
+  );
 });
 
 test('shouldLoadMoreFeed triggers when the viewer reaches the third item of the loaded batch', () => {

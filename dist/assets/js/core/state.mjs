@@ -50,6 +50,50 @@ export function createSessionFeed(videos, random = Math.random) {
   return copy;
 }
 
+export function describeVideoPath(video) {
+  const fallbackFileName = String(video?.raw?.filename ?? video?.desc ?? '未命名视频');
+  const source = String(video?.src ?? video?.raw?.src ?? video?.raw?.url ?? '').trim();
+  if (!source) {
+    return {
+      fileName: fallbackFileName,
+      directory: '/',
+    };
+  }
+
+  let pathname = '';
+  try {
+    pathname = new URL(source, 'http://localhost').pathname;
+  } catch (_error) {
+    pathname = source.split('?')[0] || '/';
+  }
+
+  const parts = pathname
+    .split('/')
+    .filter(Boolean)
+    .map((part) => {
+      try {
+        return decodeURIComponent(part);
+      } catch (_error) {
+        return part;
+      }
+    });
+
+  if (!parts.length) {
+    return {
+      fileName: fallbackFileName,
+      directory: '/',
+    };
+  }
+
+  const fileName = parts.at(-1) || fallbackFileName;
+  const directoryParts = parts.slice(0, -1);
+
+  return {
+    fileName,
+    directory: directoryParts.length ? `/${directoryParts.join('/')}` : '/',
+  };
+}
+
 export function shouldLoadMoreFeed(activeIndex, loadedCount, hasMore = true, isLoadingMore = false) {
   if (!hasMore || isLoadingMore || loadedCount <= 0) {
     return false;

@@ -1,14 +1,13 @@
-import { clamp, formatDuration, shouldAttachVideoSource } from '../core/state.mjs';
+import {
+  clamp,
+  describeVideoPath,
+  formatDuration,
+  shouldAttachVideoSource,
+} from '../core/state.mjs';
 
 const HEART_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 21.35 10.55 20C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"></path>
-  </svg>
-`;
-
-const CHEVRON_ICON = `
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M15.71 6.29a1 1 0 0 1 0 1.41L11.42 12l4.29 4.29a1 1 0 0 1-1.42 1.42l-5-5a1 1 0 0 1 0-1.42l5-5a1 1 0 0 1 1.42 0Z"></path>
   </svg>
 `;
 
@@ -19,6 +18,100 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function renderPlayerSlide(video, index) {
+  const { fileName, directory } = describeVideoPath(video);
+
+  return `
+    <article class="player-slide" data-player-slide data-index="${index}">
+      <video
+        class="player-video"
+        data-src="${escapeHtml(video.src)}"
+        playsinline
+        muted
+        preload="none"
+        loop
+      ></video>
+
+      <div class="player-scrim"></div>
+
+      <div class="player-meta">
+        <strong class="player-file-name">${escapeHtml(fileName)}</strong>
+        <span class="player-directory">${escapeHtml(directory)}</span>
+      </div>
+
+      <aside class="player-actions" data-ignore-gesture>
+        <button
+          class="action-button action-button--icon"
+          data-like-button
+          data-aweme-id="${escapeHtml(video.awemeId)}"
+          type="button"
+          aria-label="切换喜欢"
+        >
+          <span class="action-icon">${HEART_ICON}</span>
+          <span class="visually-hidden" data-like-text>喜欢</span>
+        </button>
+      </aside>
+    </article>
+  `;
+}
+
+export function renderPlayerMarkup(options) {
+  const { videos, activeTab = 'home' } = options;
+  const slides = videos.map((video, index) => renderPlayerSlide(video, index)).join('');
+
+  return `
+    <div class="app-shell app-shell--player">
+      <div class="ambient ambient--left"></div>
+      <div class="ambient ambient--right"></div>
+      <section class="phone-frame phone-frame--player">
+        <section class="player-stage" data-player-stage aria-label="视频播放器">
+          <div class="player-track" data-player-track>
+            ${slides}
+          </div>
+
+          <nav class="floating-nav player-top-nav" data-player-top-nav data-ignore-gesture>
+            <button
+              class="floating-nav-link ${activeTab === 'home' ? 'is-active' : ''}"
+              type="button"
+              data-open-home
+              data-nav-home
+            >首页</button>
+            <span class="floating-nav-divider" aria-hidden="true">-</span>
+            <button
+              class="floating-nav-link ${activeTab === 'likes' ? 'is-active' : ''}"
+              type="button"
+              data-open-likes-grid
+              data-nav-likes
+            >我的</button>
+          </nav>
+
+          <div class="speed-chip" data-speed-chip aria-live="polite">2 倍速播放中</div>
+
+          <div class="player-progress" data-ignore-gesture>
+            <div
+              class="player-progress-bar"
+              data-progress-bar
+              role="slider"
+              aria-label="播放进度"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              tabindex="0"
+            >
+              <span class="player-progress-fill" data-progress-fill></span>
+              <span class="player-progress-handle"></span>
+            </div>
+            <div class="player-time">
+              <span data-current-time>00:00</span>
+              <span data-total-time>00:00</span>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+  `;
 }
 
 export function createPlayerView(container, options) {
@@ -46,114 +139,11 @@ export function createPlayerView(container, options) {
   let wasPlayingBeforeSeek = false;
   const cleanups = [];
 
-  const slides = videos
-    .map(
-      (video, index) => `
-        <article class="player-slide" data-player-slide data-index="${index}">
-          <video
-            class="player-video"
-            data-src="${escapeHtml(video.src)}"
-            playsinline
-            muted
-            preload="none"
-            loop
-          ></video>
-
-          <div class="player-scrim"></div>
-
-          <div class="player-meta">
-            <p class="player-author">@${escapeHtml(video.authorName)}</p>
-            <h2 class="player-desc">${escapeHtml(video.desc)}</h2>
-            <p class="player-caption">长按 2x 倍速，拖动底部进度条定位播放。</p>
-          </div>
-
-          <aside class="player-actions" data-ignore-gesture>
-            <span class="player-avatar" aria-hidden="true">
-              ${
-                video.avatarUrl
-                  ? `<img src="${escapeHtml(video.avatarUrl)}" alt="">`
-                  : '<span>DY</span>'
-              }
-            </span>
-            <button
-              class="action-button"
-              data-like-button
-              data-aweme-id="${escapeHtml(video.awemeId)}"
-              type="button"
-              aria-label="切换喜欢"
-            >
-              <span class="action-icon">${HEART_ICON}</span>
-              <span class="action-text" data-like-text>喜欢</span>
-            </button>
-          </aside>
-        </article>
-      `,
-    )
-    .join('');
-
-  container.innerHTML = `
-    <div class="app-shell app-shell--player">
-      <div class="ambient ambient--left"></div>
-      <div class="ambient ambient--right"></div>
-      <section class="phone-frame phone-frame--player">
-        <header class="player-header">
-          ${
-            activeTab === 'likes'
-              ? `
-                <button class="icon-button" type="button" data-open-likes-grid data-ignore-gesture aria-label="返回我的喜欢">
-                  ${CHEVRON_ICON}
-                </button>
-              `
-              : '<span class="player-header-spacer"></span>'
-          }
-          <div class="player-header-copy">
-            <p>${activeTab === 'likes' ? 'LIKED FEED' : 'RANDOM FEED'}</p>
-            <strong>${activeTab === 'likes' ? '我的喜欢视频流' : '本地抖音首页'}</strong>
-          </div>
-          <button class="ghost-button ghost-button--small" type="button" data-open-home data-ignore-gesture>
-            首页
-          </button>
-        </header>
-
-        <section class="player-stage" data-player-stage aria-label="视频播放器">
-          <div class="player-track" data-player-track>
-            ${slides}
-          </div>
-
-          <div class="speed-chip" data-speed-chip>按住 2x 倍速</div>
-
-          <div class="player-progress" data-ignore-gesture>
-            <div
-              class="player-progress-bar"
-              data-progress-bar
-              role="slider"
-              aria-label="播放进度"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="0"
-              tabindex="0"
-            >
-              <span class="player-progress-fill" data-progress-fill></span>
-              <span class="player-progress-handle"></span>
-            </div>
-            <div class="player-time">
-              <span data-current-time>00:00</span>
-              <span data-total-time>00:00</span>
-            </div>
-          </div>
-        </section>
-
-        <nav class="bottom-nav" aria-label="主导航" data-ignore-gesture>
-          <button class="bottom-nav-item ${activeTab === 'home' ? 'is-active' : ''}" type="button" data-open-home>
-            <span>首页</span>
-          </button>
-          <button class="bottom-nav-item ${activeTab === 'likes' ? 'is-active' : ''}" type="button" data-open-likes-grid>
-            <span>我的喜欢</span>
-          </button>
-        </nav>
-      </section>
-    </div>
-  `;
+  container.innerHTML = renderPlayerMarkup({
+    videos,
+    startIndex,
+    activeTab,
+  });
 
   const stage = container.querySelector('[data-player-stage]');
   const track = container.querySelector('[data-player-track]');
@@ -222,6 +212,7 @@ export function createPlayerView(container, options) {
       button.classList.toggle('is-pending', pending);
       button.disabled = pending;
       button.setAttribute('aria-pressed', liked ? 'true' : 'false');
+      button.setAttribute('aria-label', liked ? '取消喜欢' : '标记喜欢');
 
       const textNode = button.querySelector('[data-like-text]');
       if (textNode) {
@@ -401,6 +392,8 @@ export function createPlayerView(container, options) {
       return;
     }
 
+    event.preventDefault();
+
     pointerState = {
       id: event.pointerId,
       startX: event.clientX,
@@ -418,6 +411,7 @@ export function createPlayerView(container, options) {
       return;
     }
 
+    event.preventDefault();
     pointerState.lastX = event.clientX;
     pointerState.lastY = event.clientY;
 
@@ -557,6 +551,14 @@ export function createPlayerView(container, options) {
     }
   }
 
+  const suppressDefaultInteraction = (event) => {
+    if (event.target.closest('[data-ignore-gesture]')) {
+      return;
+    }
+
+    event.preventDefault();
+  };
+
   bindClick('[data-open-home]', () => onOpenHome());
   bindClick('[data-open-likes-grid]', () => onOpenLikesGrid());
 
@@ -566,6 +568,9 @@ export function createPlayerView(container, options) {
   stage.addEventListener('pointerup', handleStagePointerEnd);
   stage.addEventListener('pointercancel', handleStagePointerEnd);
   stage.addEventListener('wheel', handleWheel, { passive: false });
+  stage.addEventListener('contextmenu', suppressDefaultInteraction);
+  stage.addEventListener('selectstart', suppressDefaultInteraction);
+  stage.addEventListener('dragstart', suppressDefaultInteraction);
   container.addEventListener('click', handleLikeClick);
   progressBar.addEventListener('pointerdown', handleSeekStart);
   window.addEventListener('keydown', handleKeyDown);
@@ -576,6 +581,9 @@ export function createPlayerView(container, options) {
   cleanups.push(() => stage.removeEventListener('pointerup', handleStagePointerEnd));
   cleanups.push(() => stage.removeEventListener('pointercancel', handleStagePointerEnd));
   cleanups.push(() => stage.removeEventListener('wheel', handleWheel));
+  cleanups.push(() => stage.removeEventListener('contextmenu', suppressDefaultInteraction));
+  cleanups.push(() => stage.removeEventListener('selectstart', suppressDefaultInteraction));
+  cleanups.push(() => stage.removeEventListener('dragstart', suppressDefaultInteraction));
   cleanups.push(() => container.removeEventListener('click', handleLikeClick));
   cleanups.push(() => progressBar.removeEventListener('pointerdown', handleSeekStart));
   cleanups.push(() => window.removeEventListener('keydown', handleKeyDown));

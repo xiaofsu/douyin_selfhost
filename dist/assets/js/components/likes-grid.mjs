@@ -1,3 +1,5 @@
+import { describeVideoPath } from '../core/state.mjs';
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -7,80 +9,67 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-export function createLikesGridView(container, options) {
-  const { videos, onOpenVideo, onOpenHome, onOpenLikesGrid } = options;
-  const cleanups = [];
+function renderLikesCard(video) {
+  const { fileName, directory } = describeVideoPath(video);
 
-  const cards = videos
-    .map(
-      (video) => `
-        <button class="likes-card" data-open-video="${escapeHtml(video.awemeId)}" type="button">
-          <span class="likes-card-media">
-            <video
-              class="likes-card-video"
-              src="${escapeHtml(video.src)}"
-              muted
-              playsinline
-              preload="metadata"
-            ></video>
-            <span class="likes-card-fallback">LOCAL CLIP</span>
-          </span>
-          <span class="likes-card-copy">
-            <strong>${escapeHtml(video.authorName)}</strong>
-            <span>${escapeHtml(video.desc)}</span>
-          </span>
-        </button>
-      `,
-    )
-    .join('');
+  return `
+    <button class="likes-card" data-open-video="${escapeHtml(video.awemeId)}" type="button">
+      <span class="likes-card-media">
+        <video
+          class="likes-card-video"
+          src="${escapeHtml(video.src)}"
+          muted
+          playsinline
+          preload="metadata"
+        ></video>
+        <span class="likes-card-fallback">LOCAL CLIP</span>
+      </span>
+      <span class="likes-card-copy">
+        <strong>${escapeHtml(fileName)}</strong>
+        <span>${escapeHtml(directory)}</span>
+      </span>
+    </button>
+  `;
+}
 
-  container.innerHTML = `
+export function renderLikesGridMarkup(options) {
+  const { videos } = options;
+  const cards = videos.map((video) => renderLikesCard(video)).join('');
+
+  return `
     <div class="app-shell app-shell--grid">
       <div class="ambient ambient--left"></div>
       <div class="ambient ambient--right"></div>
-      <section class="phone-frame phone-frame--grid">
-        <header class="screen-header">
-          <div>
-            <p class="screen-eyebrow">LOCAL FAVORITES</p>
-            <h1 class="screen-title">我的喜欢</h1>
-          </div>
-          <button class="ghost-button" type="button" data-open-home>返回首页</button>
-        </header>
+      <section class="phone-frame phone-frame--grid phone-frame--minimal">
+        <nav class="floating-nav likes-top-nav" data-likes-top-nav data-ignore-gesture>
+          <button class="floating-nav-link" type="button" data-open-home data-nav-home>首页</button>
+          <span class="floating-nav-divider" aria-hidden="true">-</span>
+          <button class="floating-nav-link is-active" type="button" data-open-likes-grid data-nav-likes>我的</button>
+        </nav>
 
-        <section class="likes-hero">
-          <p class="likes-hero-count">${videos.length}</p>
-          <div>
-            <p class="likes-hero-label">已喜欢视频</p>
-            <p class="likes-hero-copy">点击任意视频，进入只播放喜欢内容的竖屏信息流。</p>
-          </div>
-        </section>
-
-        <section class="likes-scroll">
+        <section class="likes-scroll likes-scroll--minimal">
           ${
             videos.length
               ? `<div class="likes-grid" data-likes-grid>${cards}</div>`
               : `
-                <div class="empty-state empty-state--grid">
-                  <p class="empty-state-label">还没有喜欢的视频</p>
-                  <h2>先去首页点亮喜欢</h2>
-                  <p>你在首页点过喜欢的视频，会立刻出现在这里，并且保存在本地文件里。</p>
-                  <button class="primary-button" type="button" data-open-home>去首页看看</button>
+                <div class="empty-state empty-state--grid empty-state--minimal">
+                  <p class="empty-state-label">我的喜欢为空</p>
+                  <h2>先去首页点个喜欢</h2>
+                  <button class="primary-button" type="button" data-open-home>首页</button>
                 </div>
               `
           }
         </section>
-
-        <nav class="bottom-nav" aria-label="主导航">
-          <button class="bottom-nav-item" type="button" data-open-home>
-            <span>首页</span>
-          </button>
-          <button class="bottom-nav-item is-active" type="button" data-open-likes-grid>
-            <span>我的喜欢</span>
-          </button>
-        </nav>
       </section>
     </div>
   `;
+}
+
+export function createLikesGridView(container, options) {
+  const { videos, onOpenVideo, onOpenHome, onOpenLikesGrid } = options;
+  const cleanups = [];
+
+  container.innerHTML = renderLikesGridMarkup({ videos });
 
   const openHomeButtons = container.querySelectorAll('[data-open-home]');
   const openLikesButtons = container.querySelectorAll('[data-open-likes-grid]');
