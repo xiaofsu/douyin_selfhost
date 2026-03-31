@@ -77,7 +77,12 @@ test('player video styles show the full frame instead of cropping it', () => {
 });
 
 test('player shell includes ios fill-available fallback for fullscreen coverage', () => {
+  assert.match(
+    styles,
+    /\.app-shell--player\s*\{[\s\S]*position:\s*fixed;[\s\S]*inset:\s*0;/,
+  );
   assert.match(styles, /\.phone-frame--player\s*\{[\s\S]*height:\s*-webkit-fill-available;/);
+  assert.match(styles, /\.phone-frame--player\s*\{[\s\S]*height:\s*100%;/);
 });
 
 test('resolveFastModeViewState hides player chrome during long-press playback', () => {

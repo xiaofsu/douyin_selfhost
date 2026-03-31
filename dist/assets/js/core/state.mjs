@@ -80,7 +80,7 @@ export function resolvePlayerVideoObjectPositionY(videoWidth, videoHeight) {
   }
 
   const aspectRatio = videoWidth / videoHeight;
-  const shifted = clamp(50 - (aspectRatio - 1) * 10, 36, 50);
+  const shifted = clamp(50 - (aspectRatio - 1) * 3.5, 45, 50);
   return Number(shifted.toFixed(1));
 }
 

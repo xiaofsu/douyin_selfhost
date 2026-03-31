@@ -132,9 +132,9 @@ test('resolvePlayerVideoFit uses cover for portrait videos and contain for lands
 
 test('resolvePlayerVideoObjectPositionY shifts wide videos upward based on aspect ratio', () => {
   assert.equal(resolvePlayerVideoObjectPositionY(720, 1280), 50);
-  assert.equal(resolvePlayerVideoObjectPositionY(1280, 720), 42.2);
-  assert.equal(resolvePlayerVideoObjectPositionY(1024, 768), 46.7);
-  assert.equal(resolvePlayerVideoObjectPositionY(5120, 1440), 36);
+  assert.equal(resolvePlayerVideoObjectPositionY(1280, 720), 47.3);
+  assert.equal(resolvePlayerVideoObjectPositionY(1024, 768), 48.8);
+  assert.equal(resolvePlayerVideoObjectPositionY(5120, 1440), 45);
   assert.equal(resolvePlayerVideoObjectPositionY(0, 0), 50);
 });
 
