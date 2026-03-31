@@ -62,6 +62,28 @@ export function createHomeRefreshState(seed = '') {
   };
 }
 
+export function resolvePlayerVideoFit(videoWidth, videoHeight) {
+  if (!Number.isFinite(videoWidth) || !Number.isFinite(videoHeight) || videoWidth <= 0 || videoHeight <= 0) {
+    return 'contain';
+  }
+
+  return videoWidth > videoHeight ? 'contain' : 'cover';
+}
+
+export function resolvePlayerVideoObjectPositionY(videoWidth, videoHeight) {
+  if (!Number.isFinite(videoWidth) || !Number.isFinite(videoHeight) || videoWidth <= 0 || videoHeight <= 0) {
+    return 50;
+  }
+
+  if (videoWidth <= videoHeight) {
+    return 50;
+  }
+
+  const aspectRatio = videoWidth / videoHeight;
+  const shifted = clamp(50 - (aspectRatio - 1) * 10, 36, 50);
+  return Number(shifted.toFixed(1));
+}
+
 export function describeVideoPath(video) {
   const fallbackFileName = String(video?.raw?.filename ?? video?.desc ?? '未命名视频');
   const source = String(video?.src ?? video?.raw?.src ?? video?.raw?.url ?? '').trim();

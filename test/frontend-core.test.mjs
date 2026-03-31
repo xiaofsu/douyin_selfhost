@@ -8,6 +8,8 @@ import {
   describeVideoPath,
   deriveNextLikedPlayerState,
   normalizeVideo,
+  resolvePlayerVideoFit,
+  resolvePlayerVideoObjectPositionY,
   resolveSoundPreference,
   resolvePlayerEntry,
   seekRatioFromPointer,
@@ -119,6 +121,21 @@ test('describeVideoPath extracts filename and directory from local media src', (
       directory: '/media/piano/classroom',
     },
   );
+});
+
+test('resolvePlayerVideoFit uses cover for portrait videos and contain for landscape videos', () => {
+  assert.equal(resolvePlayerVideoFit(720, 1280), 'cover');
+  assert.equal(resolvePlayerVideoFit(1280, 720), 'contain');
+  assert.equal(resolvePlayerVideoFit(1080, 1080), 'cover');
+  assert.equal(resolvePlayerVideoFit(0, 0), 'contain');
+});
+
+test('resolvePlayerVideoObjectPositionY shifts wide videos upward based on aspect ratio', () => {
+  assert.equal(resolvePlayerVideoObjectPositionY(720, 1280), 50);
+  assert.equal(resolvePlayerVideoObjectPositionY(1280, 720), 42.2);
+  assert.equal(resolvePlayerVideoObjectPositionY(1024, 768), 46.7);
+  assert.equal(resolvePlayerVideoObjectPositionY(5120, 1440), 36);
+  assert.equal(resolvePlayerVideoObjectPositionY(0, 0), 50);
 });
 
 test('seekRatioFromPointer clamps the drag position to the progress bar width', () => {

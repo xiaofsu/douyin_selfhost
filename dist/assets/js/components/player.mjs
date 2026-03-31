@@ -2,6 +2,8 @@ import {
   clamp,
   describeVideoPath,
   formatDuration,
+  resolvePlayerVideoFit,
+  resolvePlayerVideoObjectPositionY,
   resolveSoundPreference,
   seekRatioFromPointer,
   shouldAttachVideoSource,
@@ -246,12 +248,34 @@ export function createPlayerView(container, options) {
     return videoNodes[activeIndex] ?? null;
   }
 
+  function clearVideoFitMode(video) {
+    if (!video) {
+      return;
+    }
+
+    video.classList.remove('is-portrait', 'is-landscape');
+    video.style.removeProperty('--player-video-object-position-y');
+  }
+
+  function syncVideoFitMode(video) {
+    if (!video) {
+      return;
+    }
+
+    const fit = resolvePlayerVideoFit(video.videoWidth, video.videoHeight);
+    const objectPositionY = resolvePlayerVideoObjectPositionY(video.videoWidth, video.videoHeight);
+    video.classList.toggle('is-portrait', fit === 'cover');
+    video.classList.toggle('is-landscape', fit === 'contain');
+    video.style.setProperty('--player-video-object-position-y', `${objectPositionY}%`);
+  }
+
   function attachVideoSource(video, index) {
     const src = video?.dataset.src || videos[index]?.src || '';
     if (!video || !src || video.getAttribute('src') === src) {
       return;
     }
 
+    clearVideoFitMode(video);
     video.setAttribute('src', src);
     video.load();
   }
@@ -262,6 +286,7 @@ export function createPlayerView(container, options) {
     }
 
     video.pause();
+    clearVideoFitMode(video);
     video.removeAttribute('src');
     video.load();
   }
@@ -781,6 +806,11 @@ export function createPlayerView(container, options) {
       }
     };
 
+    const handleLoadedMetadata = () => {
+      syncVideoFitMode(video);
+      syncIfActive();
+    };
+
     const commitSeekIfReady = () => {
       if (index !== activeIndex || isSeeking || !awaitingSeekCommit || !canCommitPendingSeek(video)) {
         return;
@@ -789,7 +819,7 @@ export function createPlayerView(container, options) {
       syncProgress({ commitSeek: true });
     };
 
-    video.addEventListener('loadedmetadata', syncIfActive);
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('loadeddata', commitSeekIfReady);
     video.addEventListener('canplay', commitSeekIfReady);
     video.addEventListener('seeked', commitSeekIfReady);
@@ -797,12 +827,13 @@ export function createPlayerView(container, options) {
     video.addEventListener('timeupdate', syncIfActive);
 
     cleanups.push(() => {
-      video.removeEventListener('loadedmetadata', syncIfActive);
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('loadeddata', commitSeekIfReady);
       video.removeEventListener('canplay', commitSeekIfReady);
       video.removeEventListener('seeked', commitSeekIfReady);
       video.removeEventListener('playing', commitSeekIfReady);
       video.removeEventListener('timeupdate', syncIfActive);
+      clearVideoFitMode(video);
       video.pause();
     });
   }

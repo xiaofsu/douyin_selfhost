@@ -521,8 +521,16 @@ img {
 
 .player-video {
   object-fit: contain;
-  object-position: center;
+  object-position: center var(--player-video-object-position-y, 50%);
   background: #030303;
+}
+
+.player-video.is-portrait {
+  object-fit: cover;
+}
+
+.player-video.is-landscape {
+  object-fit: contain;
 }
 
 .player-scrim {

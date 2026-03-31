@@ -68,7 +68,12 @@ test('renderPlayerMarkup hides the mute toggle after audio is enabled', () => {
 });
 
 test('player video styles show the full frame instead of cropping it', () => {
-  assert.match(styles, /\.player-video\s*\{[\s\S]*object-fit:\s*contain;/);
+  assert.match(
+    styles,
+    /\.player-video\s*\{[\s\S]*object-fit:\s*contain;[\s\S]*object-position:\s*center var\(--player-video-object-position-y,\s*50%\);/,
+  );
+  assert.match(styles, /\.player-video\.is-portrait\s*\{[\s\S]*object-fit:\s*cover;/);
+  assert.match(styles, /\.player-video\.is-landscape\s*\{[\s\S]*object-fit:\s*contain;/);
 });
 
 test('player shell includes ios fill-available fallback for fullscreen coverage', () => {
