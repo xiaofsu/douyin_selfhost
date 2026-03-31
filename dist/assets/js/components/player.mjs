@@ -21,6 +21,8 @@ const VOLUME_ICON = `
   </svg>
 `;
 
+const SEEK_COMMIT_READY_STATE = 2;
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -133,6 +135,55 @@ export function renderPlayerMarkup(options) {
   `;
 }
 
+function sanitizeProgressSnapshot(snapshot = {}) {
+  const duration = Number.isFinite(snapshot.duration) && snapshot.duration > 0 ? snapshot.duration : 0;
+  const currentTime = Number.isFinite(snapshot.currentTime) && snapshot.currentTime >= 0
+    ? (duration > 0 ? clamp(snapshot.currentTime, 0, duration) : snapshot.currentTime)
+    : 0;
+  const fallbackRatio = duration > 0 ? currentTime / duration : 0;
+  const ratio = clamp(Number.isFinite(snapshot.ratio) ? snapshot.ratio : fallbackRatio, 0, 1);
+
+  return {
+    ratio,
+    currentTime,
+    duration,
+  };
+}
+
+function captureProgressSnapshot(video) {
+  if (!video) {
+    return sanitizeProgressSnapshot();
+  }
+
+  return sanitizeProgressSnapshot({
+    duration: video.duration,
+    currentTime: video.currentTime,
+  });
+}
+
+export function resolveDisplayedProgressSnapshot(options = {}) {
+  const committedSnapshot = sanitizeProgressSnapshot(options.committedSnapshot);
+  const liveSnapshot = sanitizeProgressSnapshot(options.liveSnapshot);
+
+  if (!options.awaitingSeekCommit) {
+    return liveSnapshot;
+  }
+
+  return {
+    ratio: clamp(
+      Number.isFinite(options.previewRatio) ? options.previewRatio : committedSnapshot.ratio,
+      0,
+      1,
+    ),
+    currentTime: committedSnapshot.currentTime,
+    duration: liveSnapshot.duration || committedSnapshot.duration,
+  };
+}
+
+export function canCommitPendingSeek(video) {
+  return !!video && !video.seeking && Number(video.readyState ?? 0) >= SEEK_COMMIT_READY_STATE;
+}
+
 export function createPlayerView(container, options) {
   const {
     videos,
@@ -158,6 +209,9 @@ export function createPlayerView(container, options) {
   let destroyed = false;
   let wheelLocked = false;
   let wasPlayingBeforeSeek = false;
+  let awaitingSeekCommit = false;
+  let pendingSeekRatio = null;
+  let committedProgress = sanitizeProgressSnapshot();
   let soundEnabled = initialSoundEnabled;
   const cleanups = [];
 
@@ -265,22 +319,50 @@ export function createPlayerView(container, options) {
     progressBar.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
   }
 
-  function syncProgress() {
+  function clearPendingSeekState() {
+    awaitingSeekCommit = false;
+    pendingSeekRatio = null;
+  }
+
+  function renderProgressSnapshot(snapshot) {
+    syncProgressUi(snapshot.ratio);
+    currentTimeNode.textContent = formatDuration(snapshot.currentTime);
+    totalTimeNode.textContent = formatDuration(snapshot.duration);
+  }
+
+  function syncProgress(options = {}) {
     const video = currentVideo();
     if (!video) {
-      syncProgressUi(0);
-      currentTimeNode.textContent = '00:00';
-      totalTimeNode.textContent = '00:00';
+      committedProgress = sanitizeProgressSnapshot();
+      clearPendingSeekState();
+      renderProgressSnapshot(committedProgress);
       return;
     }
 
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    const ratio = duration > 0 ? currentTime / duration : 0;
+    const liveSnapshot = captureProgressSnapshot(video);
+    const commitSeek = options.commitSeek === true;
 
-    syncProgressUi(ratio);
-    currentTimeNode.textContent = formatDuration(currentTime);
-    totalTimeNode.textContent = formatDuration(duration);
+    if (commitSeek || !awaitingSeekCommit) {
+      committedProgress = liveSnapshot;
+    } else if (liveSnapshot.duration > 0) {
+      committedProgress = {
+        ...committedProgress,
+        duration: liveSnapshot.duration,
+      };
+    }
+
+    renderProgressSnapshot(
+      resolveDisplayedProgressSnapshot({
+        committedSnapshot: committedProgress,
+        liveSnapshot,
+        previewRatio: pendingSeekRatio,
+        awaitingSeekCommit: awaitingSeekCommit && !commitSeek,
+      }),
+    );
+
+    if (commitSeek) {
+      clearPendingSeekState();
+    }
   }
 
   async function playActiveVideo() {
@@ -367,6 +449,7 @@ export function createPlayerView(container, options) {
     pauseInactiveVideos();
     syncLikeButtons();
     syncMuteButtons();
+    clearPendingSeekState();
     syncProgress();
     writeLikesPlayerUrl();
     playActiveVideo();
@@ -527,17 +610,32 @@ export function createPlayerView(container, options) {
   function updateSeekPosition(clientX) {
     const rect = progressBar.getBoundingClientRect();
     const ratio = seekRatioFromPointer(clientX, rect.left, rect.width);
-    syncProgressUi(ratio);
-
     const video = currentVideo();
-    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
-      currentTimeNode.textContent = '00:00';
+    if (!video) {
+      committedProgress = sanitizeProgressSnapshot();
+      clearPendingSeekState();
+      renderProgressSnapshot(committedProgress);
       return;
     }
 
-    video.currentTime = video.duration * ratio;
-    currentTimeNode.textContent = formatDuration(video.currentTime);
-    totalTimeNode.textContent = formatDuration(video.duration);
+    const liveSnapshot = captureProgressSnapshot(video);
+    if (liveSnapshot.duration <= 0) {
+      renderProgressSnapshot(liveSnapshot);
+      return;
+    }
+
+    awaitingSeekCommit = true;
+    pendingSeekRatio = ratio;
+    video.currentTime = liveSnapshot.duration * ratio;
+
+    renderProgressSnapshot(
+      resolveDisplayedProgressSnapshot({
+        committedSnapshot: committedProgress,
+        liveSnapshot: captureProgressSnapshot(video),
+        previewRatio: ratio,
+        awaitingSeekCommit: true,
+      }),
+    );
   }
 
   function handleSeekStart(event) {
@@ -548,6 +646,7 @@ export function createPlayerView(container, options) {
     const video = currentVideo();
     wasPlayingBeforeSeek = !!video && !video.paused;
     if (video) {
+      committedProgress = captureProgressSnapshot(video);
       video.pause();
     }
 
@@ -668,11 +767,27 @@ export function createPlayerView(container, options) {
       }
     };
 
+    const commitSeekIfReady = () => {
+      if (index !== activeIndex || isSeeking || !awaitingSeekCommit || !canCommitPendingSeek(video)) {
+        return;
+      }
+
+      syncProgress({ commitSeek: true });
+    };
+
     video.addEventListener('loadedmetadata', syncIfActive);
+    video.addEventListener('loadeddata', commitSeekIfReady);
+    video.addEventListener('canplay', commitSeekIfReady);
+    video.addEventListener('seeked', commitSeekIfReady);
+    video.addEventListener('playing', commitSeekIfReady);
     video.addEventListener('timeupdate', syncIfActive);
 
     cleanups.push(() => {
       video.removeEventListener('loadedmetadata', syncIfActive);
+      video.removeEventListener('loadeddata', commitSeekIfReady);
+      video.removeEventListener('canplay', commitSeekIfReady);
+      video.removeEventListener('seeked', commitSeekIfReady);
+      video.removeEventListener('playing', commitSeekIfReady);
       video.removeEventListener('timeupdate', syncIfActive);
       video.pause();
     });

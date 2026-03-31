@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { renderPlayerMarkup } from '../dist/assets/js/components/player.mjs';
+import {
+  canCommitPendingSeek,
+  renderPlayerMarkup,
+  resolveDisplayedProgressSnapshot,
+} from '../dist/assets/js/components/player.mjs';
 import { renderLikesGridMarkup } from '../dist/assets/js/components/likes-grid.mjs';
 
 const sampleVideo = {
@@ -58,6 +62,51 @@ test('renderPlayerMarkup hides the mute toggle after audio is enabled', () => {
   });
 
   assert.match(html, /action-button action-button--mute is-hidden/);
+});
+
+test('resolveDisplayedProgressSnapshot keeps the confirmed time until the seek target is ready', () => {
+  const committedSnapshot = {
+    ratio: 0.2,
+    currentTime: 12,
+    duration: 60,
+  };
+
+  const liveSnapshot = {
+    ratio: 0.75,
+    currentTime: 45,
+    duration: 60,
+  };
+
+  assert.deepEqual(
+    resolveDisplayedProgressSnapshot({
+      committedSnapshot,
+      liveSnapshot,
+      previewRatio: 0.75,
+      awaitingSeekCommit: true,
+    }),
+    {
+      ratio: 0.75,
+      currentTime: 12,
+      duration: 60,
+    },
+  );
+
+  assert.deepEqual(
+    resolveDisplayedProgressSnapshot({
+      committedSnapshot,
+      liveSnapshot,
+      previewRatio: 0.75,
+      awaitingSeekCommit: false,
+    }),
+    liveSnapshot,
+  );
+});
+
+test('canCommitPendingSeek waits until the browser has current frame data for the seek target', () => {
+  assert.equal(canCommitPendingSeek(null), false);
+  assert.equal(canCommitPendingSeek({ seeking: true, readyState: 4 }), false);
+  assert.equal(canCommitPendingSeek({ seeking: false, readyState: 1 }), false);
+  assert.equal(canCommitPendingSeek({ seeking: false, readyState: 2 }), true);
 });
 
 test('renderLikesGridMarkup removes hero copy and keeps compact top nav', () => {
