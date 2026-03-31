@@ -31,6 +31,31 @@ test('backend startup code does not reference legacy posts6 fallback paths', asy
   assert.equal(mainGo.includes('Trying src path'), false);
 });
 
+test('backend only keeps the API routes used by the built-in frontend', async () => {
+  const mainGo = await read('main.go');
+
+  const removedRoutes = [
+    '/video/long/recommended',
+    '/video/comments',
+    '/video/private',
+    '/video/my',
+    '/video/history',
+    '/api/video/list',
+    '/user/panel',
+    '/user/collect',
+    '/user/video_list',
+    '/user/friends',
+    '/historyOther',
+    '/post/recommended',
+    '/shop/recommended',
+    '/music',
+  ];
+
+  for (const route of removedRoutes) {
+    assert.equal(mainGo.includes(route), false, `expected legacy route ${route} to be removed`);
+  }
+});
+
 test('home navigation refreshes only on the home route and resumes from likes routes', async () => {
   const appScript = await read('dist/assets/js/app.mjs');
 
