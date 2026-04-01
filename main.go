@@ -327,20 +327,30 @@ func getCachedMediaVideos() []map[string]interface{} {
 }
 
 func refreshMediaSnapshot(root, reason string) error {
+	startedAt := time.Now()
+	log.Printf("开始刷新媒体快照: 原因=%s 目录=%s", reason, root)
+
 	videos, err := scanMediaVideosFromRoot(root)
 	if err != nil {
 		return err
 	}
 
 	replaceMediaSnapshot(videos)
-	log.Printf("Refreshed media snapshot (%s): %d videos", reason, len(videos))
+	log.Printf(
+		"媒体快照刷新完成: 原因=%s 目录=%s 视频数=%d 耗时=%s",
+		reason,
+		root,
+		len(videos),
+		time.Since(startedAt).Round(time.Millisecond),
+	)
 	return nil
 }
 
 func startMediaSnapshotLoop(root string) {
 	if err := refreshMediaSnapshot(root, "startup"); err != nil {
-		log.Printf("Failed to build initial media snapshot: %v", err)
+		log.Printf("启动时构建媒体快照失败: 目录=%s 错误=%v", root, err)
 	}
+	log.Printf("媒体快照定时刷新已启动: 目录=%s 间隔=%s", root, mediaSnapshotRescanInterval)
 
 	go func() {
 		ticker := time.NewTicker(mediaSnapshotRescanInterval)
@@ -349,7 +359,7 @@ func startMediaSnapshotLoop(root string) {
 		for {
 			<-ticker.C
 			if err := refreshMediaSnapshot(root, "periodic-rescan"); err != nil {
-				log.Printf("Failed to refresh media snapshot (periodic-rescan): %v", err)
+				log.Printf("定时刷新媒体快照失败: 目录=%s 错误=%v", root, err)
 			}
 		}
 	}()
@@ -680,6 +690,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	startedAt := time.Now()
 	var pagedVideos interface{}
 	var total int
 	
@@ -718,6 +729,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		start = total
 	}
 	pagedVideos = videos[start:end]
+	returnedCount := end - start
 
 	resp := ResponseData{
 		Total: total,
@@ -731,6 +743,15 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		"msg":  "",
 	}
 	json.NewEncoder(w).Encode(finalResp)
+	log.Printf(
+		"推荐接口返回: start=%d pageSize=%d seed=%q 缓存总数=%d 返回数=%d 耗时=%s",
+		start,
+		pageSize,
+		seed,
+		total,
+		returnedCount,
+		time.Since(startedAt).Round(time.Millisecond),
+	)
 }
 
 func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
@@ -744,6 +765,7 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		collectPayload, err := loadCollectPayload()
 		if err != nil {
+			log.Printf("读取点赞列表失败: 错误=%v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -760,26 +782,31 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 			"msg":  "",
 		}
 		json.NewEncoder(w).Encode(finalResp)
+		log.Printf("点赞列表返回: 总数=%d", collectPayload.Data.Video.Total)
 		return
 	}
 
 	if r.Method != http.MethodPost {
+		log.Printf("点赞接口方法不支持: method=%s", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	action, awemeID, video, err := parseVideoLikeMutation(r)
 	if err != nil {
+		log.Printf("解析点赞请求失败: 错误=%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if action == "" {
+		log.Printf("点赞请求缺少操作类型: aweme_id=%s", awemeID)
 		http.Error(w, "missing like action", http.StatusBadRequest)
 		return
 	}
 
 	collectPayload, err := updateCollectPayload(action, awemeID, video)
 	if err != nil {
+		log.Printf("点赞接口更新失败: action=%s aweme_id=%s 错误=%v", action, awemeID, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -795,6 +822,7 @@ func videoLikeHandler(w http.ResponseWriter, r *http.Request) {
 		"msg":  "",
 	}
 	json.NewEncoder(w).Encode(finalResp)
+	log.Printf("点赞接口已更新: action=%s aweme_id=%s 当前总数=%d", action, awemeID, collectPayload.Data.Video.Total)
 }
 
 func main() {
@@ -814,22 +842,32 @@ func main() {
 	mediaDir = mediaDirFlag
 	host := hostFlag
 	port := portFlag
+	log.Printf(
+		"启动参数: host=%s port=%s media=%s static=%s index=%s",
+		host,
+		port,
+		mediaDir,
+		staticPath,
+		indexPath,
+	)
 
 	// Initialize fileSystem
 	if _, err := os.Stat(staticPath); err == nil {
-		log.Printf("Using local static directory: %s", staticPath)
+		log.Printf("使用本地静态资源目录: %s", staticPath)
 		fileSystem = os.DirFS(staticPath)
 	} else {
-		log.Printf("Local directory %s not found, using embedded resources", staticPath)
+		log.Printf("本地静态资源目录不存在，回退到内嵌资源: %s", staticPath)
 		var err error
 		fileSystem, err = fs.Sub(embedDist, "dist")
 		if err != nil {
-			log.Fatal("Failed to load embedded dist:", err)
+			log.Fatal("加载内嵌静态资源失败:", err)
 		}
 	}
 
 	if _, err := loadCollectPayload(); err != nil {
-		log.Printf("Failed to initialize user collect file: %v", err)
+		log.Printf("初始化点赞数据文件失败: 路径=%s 错误=%v", collectFilePath, err)
+	} else {
+		log.Printf("点赞数据文件已初始化: %s", collectFilePath)
 	}
 	startMediaSnapshotLoop(mediaDir)
 
@@ -844,6 +882,12 @@ func main() {
 	spa := spaHandler{fileSystem: fileSystem, indexPath: indexPath}
 	http.Handle("/", spa)
 
-	log.Printf("Serving SPA on http://%s:%s ...", host, port)
+	log.Printf(
+		"服务启动完成: 地址=http://%s:%s 媒体目录=%s 快照刷新间隔=%s",
+		host,
+		port,
+		mediaDir,
+		mediaSnapshotRescanInterval,
+	)
 	log.Fatal(http.ListenAndServe(host+":"+port, nil))
 }

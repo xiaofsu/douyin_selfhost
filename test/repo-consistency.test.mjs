@@ -82,6 +82,15 @@ test('backend media cache relies on periodic rescans without fsnotify', async ()
   assert.equal(mainGo.includes('10 * time.Minute'), true);
 });
 
+test('backend emits medium-detail chinese runtime logs for cache and api flow', async () => {
+  const mainGo = await read('main.go');
+
+  assert.equal(mainGo.includes('媒体快照刷新完成'), true);
+  assert.equal(mainGo.includes('推荐接口返回'), true);
+  assert.equal(mainGo.includes('点赞接口已更新'), true);
+  assert.equal(mainGo.includes('服务启动完成'), true);
+});
+
 test('home navigation refreshes only on the home route and resumes from likes routes', async () => {
   const appScript = await read('dist/assets/js/app.mjs');
 
