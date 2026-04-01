@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
 
 func TestShuffleVideosReturnsShuffledCopyWithoutMutatingInput(t *testing.T) {
 	original := []map[string]interface{}{
@@ -35,15 +40,6 @@ func TestShuffleVideosReturnsShuffledCopyWithoutMutatingInput(t *testing.T) {
 }
 
 func TestNormalizeCollectPayloadKeepsMockShape(t *testing.T) {
-	originalMusic := jsonMusic
-	t.Cleanup(func() {
-		jsonMusic = originalMusic
-	})
-
-	jsonMusic = []map[string]interface{}{
-		{"id": 1, "title": "Song A"},
-	}
-
 	payload := CollectPayload{}
 	normalizeCollectPayload(&payload)
 
@@ -59,14 +55,14 @@ func TestNormalizeCollectPayloadKeepsMockShape(t *testing.T) {
 	if payload.Data.Video.List == nil {
 		t.Fatal("expected video list to be initialized")
 	}
-	if payload.Data.Music.Total != 1 {
-		t.Fatalf("expected music total 1, got %d", payload.Data.Music.Total)
+	if payload.Data.Music.Total != 0 {
+		t.Fatalf("expected empty music total, got %d", payload.Data.Music.Total)
 	}
-	if len(payload.Data.Music.List) != 1 {
-		t.Fatalf("expected one music item, got %d", len(payload.Data.Music.List))
+	if len(payload.Data.Music.List) != 0 {
+		t.Fatalf("expected empty music list, got %d", len(payload.Data.Music.List))
 	}
-	if got := payload.Data.Music.List[0]["title"]; got != "Song A" {
-		t.Fatalf("expected music title Song A, got %v", got)
+	if payload.Data.Music.List == nil {
+		t.Fatal("expected music list to be initialized")
 	}
 }
 
@@ -126,5 +122,97 @@ func TestRemoveCollectedVideoDeletesByAwemeID(t *testing.T) {
 	}
 	if got := payload.Data.Video.List[0]["aweme_id"]; got != "2" {
 		t.Fatalf("expected remaining video id 2, got %v", got)
+	}
+}
+
+func TestRefreshMediaSnapshotCachesSortedVideos(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "nested"), 0o755); err != nil {
+		t.Fatalf("expected nested directory to be created, got %v", err)
+	}
+
+	olderPath := filepath.Join(root, "older.mp4")
+	if err := os.WriteFile(olderPath, []byte("older"), 0o644); err != nil {
+		t.Fatalf("expected older video to be created, got %v", err)
+	}
+	olderTime := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(olderPath, olderTime, olderTime); err != nil {
+		t.Fatalf("expected older video timestamp to be updated, got %v", err)
+	}
+
+	newerPath := filepath.Join(root, "nested", "newer.webm")
+	if err := os.WriteFile(newerPath, []byte("newer"), 0o644); err != nil {
+		t.Fatalf("expected newer video to be created, got %v", err)
+	}
+	newerTime := time.Now().Add(-1 * time.Hour)
+	if err := os.Chtimes(newerPath, newerTime, newerTime); err != nil {
+		t.Fatalf("expected newer video timestamp to be updated, got %v", err)
+	}
+
+	if err := refreshMediaSnapshot(root, "test"); err != nil {
+		t.Fatalf("expected media snapshot refresh to succeed, got %v", err)
+	}
+
+	videos := getCachedMediaVideos()
+	if len(videos) != 2 {
+		t.Fatalf("expected two cached videos, got %d", len(videos))
+	}
+
+	if got := videos[0]["desc"]; got != "newer" {
+		t.Fatalf("expected newest video first, got %v", got)
+	}
+	if got := videos[1]["desc"]; got != "older" {
+		t.Fatalf("expected older video second, got %v", got)
+	}
+
+	playAddr, ok := videos[0]["video"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected cached video payload to contain video info, got %T", videos[0]["video"])
+	}
+	playURL, ok := playAddr["play_addr"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected cached video payload to contain play address, got %T", playAddr["play_addr"])
+	}
+	urlList, ok := playURL["url_list"].([]string)
+	if !ok {
+		t.Fatalf("expected play address url list, got %T", playURL["url_list"])
+	}
+	if len(urlList) != 1 || urlList[0] != "/media/nested/newer.webm" {
+		t.Fatalf("expected nested media url to be preserved, got %v", urlList)
+	}
+
+	videos[0] = map[string]interface{}{"aweme_id": "mutated"}
+	refetched := getCachedMediaVideos()
+	if got := refetched[0]["aweme_id"]; got == "mutated" {
+		t.Fatalf("expected cached snapshot reads to return a copied slice")
+	}
+}
+
+func TestFindVideoByAwemeIDReadsCachedSnapshot(t *testing.T) {
+	replaceMediaSnapshot([]map[string]interface{}{
+		{"aweme_id": "target", "desc": "cached"},
+	})
+
+	video, found, err := findVideoByAwemeID("target")
+	if err != nil {
+		t.Fatalf("expected cached lookup to succeed, got %v", err)
+	}
+	if !found {
+		t.Fatal("expected cached video to be found")
+	}
+	if got := video["desc"]; got != "cached" {
+		t.Fatalf("expected cached video payload to be returned, got %v", got)
+	}
+
+	video["desc"] = "mutated"
+	refetched, found, err := findVideoByAwemeID("target")
+	if err != nil {
+		t.Fatalf("expected cached lookup after mutation to succeed, got %v", err)
+	}
+	if !found {
+		t.Fatal("expected cached video to still be found")
+	}
+	if got := refetched["desc"]; got != "cached" {
+		t.Fatalf("expected cached lookup to return a cloned payload, got %v", got)
 	}
 }

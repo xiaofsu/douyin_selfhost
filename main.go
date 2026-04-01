@@ -124,14 +124,27 @@ var embedDist embed.FS
 var fileSystem fs.FS
 
 var collectFileMu sync.Mutex
+var mediaSnapshotMu sync.RWMutex
+var cachedMediaSnapshot = mediaSnapshot{videos: []map[string]interface{}{}}
+
+const mediaSnapshotRescanInterval = 10 * time.Minute
+
+type mediaSnapshot struct {
+	videos    []map[string]interface{}
+	scannedAt time.Time
+}
 
 func scanMediaVideos() ([]map[string]interface{}, error) {
+	return scanMediaVideosFromRoot(mediaDir)
+}
+
+func scanMediaVideosFromRoot(root string) ([]map[string]interface{}, error) {
 	videos := make([]map[string]interface{}, 0)
 
-	err := filepath.WalkDir(mediaDir, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// If mediaDir itself doesn't exist, we'll catch it.
-			if os.IsNotExist(err) && path == mediaDir {
+			// If the root itself doesn't exist, we'll treat it as empty.
+			if os.IsNotExist(err) && path == root {
 				return nil // Treat as empty
 			}
 			return err
@@ -147,7 +160,7 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 		}
 
 		// Get relative path
-		relPath, err := filepath.Rel(mediaDir, path)
+		relPath, err := filepath.Rel(root, path)
 		if err != nil {
 			return nil
 		}
@@ -296,6 +309,50 @@ func scanMediaVideos() ([]map[string]interface{}, error) {
 	})
 
 	return videos, nil
+}
+
+func replaceMediaSnapshot(videos []map[string]interface{}) {
+	mediaSnapshotMu.Lock()
+	cachedMediaSnapshot = mediaSnapshot{
+		videos:    append([]map[string]interface{}(nil), videos...),
+		scannedAt: time.Now(),
+	}
+	mediaSnapshotMu.Unlock()
+}
+
+func getCachedMediaVideos() []map[string]interface{} {
+	mediaSnapshotMu.RLock()
+	defer mediaSnapshotMu.RUnlock()
+	return append([]map[string]interface{}(nil), cachedMediaSnapshot.videos...)
+}
+
+func refreshMediaSnapshot(root, reason string) error {
+	videos, err := scanMediaVideosFromRoot(root)
+	if err != nil {
+		return err
+	}
+
+	replaceMediaSnapshot(videos)
+	log.Printf("Refreshed media snapshot (%s): %d videos", reason, len(videos))
+	return nil
+}
+
+func startMediaSnapshotLoop(root string) {
+	if err := refreshMediaSnapshot(root, "startup"); err != nil {
+		log.Printf("Failed to build initial media snapshot: %v", err)
+	}
+
+	go func() {
+		ticker := time.NewTicker(mediaSnapshotRescanInterval)
+		defer ticker.Stop()
+
+		for {
+			<-ticker.C
+			if err := refreshMediaSnapshot(root, "periodic-rescan"); err != nil {
+				log.Printf("Failed to refresh media snapshot (periodic-rescan): %v", err)
+			}
+		}
+	}()
 }
 
 func shuffleVideos(videos []map[string]interface{}, shuffle func(int, func(int, int))) []map[string]interface{} {
@@ -564,18 +621,12 @@ func findVideoByAwemeID(awemeID string) (map[string]interface{}, bool, error) {
 		return nil, false, nil
 	}
 
-	videos, err := scanMediaVideos()
-	if err == nil {
-		for _, video := range videos {
-			if stringValue(video["aweme_id"]) == awemeID {
-				return cloneJSONObject(video), true, nil
-			}
+	for _, video := range getCachedMediaVideos() {
+		if stringValue(video["aweme_id"]) == awemeID {
+			return cloneJSONObject(video), true, nil
 		}
 	}
 
-	if err != nil {
-		return nil, false, err
-	}
 	return nil, false, nil
 }
 
@@ -650,11 +701,7 @@ func recommendedHandler(w http.ResponseWriter, r *http.Request) {
 		pageSize = 5
 	}
 
-	videos, err := scanMediaVideos()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	videos := getCachedMediaVideos()
 
 	if seed != "" {
 		videos = shuffleVideosWithSeed(videos, seed)
@@ -784,6 +831,7 @@ func main() {
 	if _, err := loadCollectPayload(); err != nil {
 		log.Printf("Failed to initialize user collect file: %v", err)
 	}
+	startMediaSnapshotLoop(mediaDir)
 
 	// Serve media files
 	http.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(mediaDir))))

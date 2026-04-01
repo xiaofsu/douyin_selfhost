@@ -10,7 +10,12 @@
 
 ### 1. 准备目录
 
-在项目目录下创建 `data` 目录，并把视频文件放进去：
+你可以选择：
+
+- 挂载单个视频目录
+- 挂载多个宿主目录，并分别映射到容器内 `/app/media` 下的不同子目录
+
+单目录示例：
 
 ```bash
 mkdir -p data
@@ -26,6 +31,19 @@ mkdir -p data
     ├── b.mp4
     └── folder
         └── c.webm
+```
+
+多目录示例：
+
+```text
+.
+├── compose.yaml
+├── anime
+│   ├── ep1.mp4
+│   └── ep2.mp4
+└── movie
+    ├── a.mp4
+    └── b.webm
 ```
 
 支持的视频格式：
@@ -50,6 +68,24 @@ services:
 ```
 
 这里的本地 `./data` 会挂载到容器内的 `/app/media`，播放器会直接扫描这个目录里的视频。
+
+如果你要挂载多个宿主目录，写法是把多个宿主目录分别挂到 `/app/media` 的不同子目录：
+
+```yaml
+version: "3.9"
+services:
+  backend:
+    image: ghcr.io/xiaofsu/douyin_selfhost:latest
+    container_name: douyin_backend
+    volumes:
+      - "./anime:/app/media/anime:ro"
+      - "./movie:/app/media/movie:ro"
+    ports:
+      - "8080:8080"
+    restart: always
+```
+
+这里的多个宿主目录会统一出现在容器内的 `/app/media/anime`、`/app/media/movie` 等子目录下。播放器会递归扫描 `/app/media`，所以这些子目录里的视频都会被自动发现。
 
 ### 3. 启动
 
@@ -106,7 +142,8 @@ services:
     image: ghcr.io/xiaofsu/douyin_selfhost:latest
     container_name: douyin_backend
     volumes:
-      - "./data:/app/media"
+      - "./anime:/app/media/anime:ro"
+      - "./movie:/app/media/movie:ro"
       - "./app-data:/app/data"
     ports:
       - "8080:8080"

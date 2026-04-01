@@ -24,6 +24,15 @@ test('readme only documents the built-in local frontend flow', async () => {
   assert.equal(readme.includes('不需要额外准备外部前端工程'), true);
 });
 
+test('readme documents multi-directory docker compose mounts under app media subdirectories', async () => {
+  const readme = await read('README.md');
+
+  assert.equal(readme.includes('/app/media/anime'), true);
+  assert.equal(readme.includes('/app/media/movie'), true);
+  assert.equal(readme.includes('多个宿主目录'), true);
+  assert.equal(readme.includes('docker compose'), true);
+});
+
 test('backend startup code does not reference legacy posts6 fallback paths', async () => {
   const mainGo = await read('main.go');
 
@@ -62,6 +71,15 @@ test('backend media scanner has no orphaned legacy avatar dependency', async () 
   assert.equal(mainGo.includes('"net/url"'), true);
   assert.equal(mainGo.includes('avatar_dataurl'), false);
   assert.equal(mainGo.includes('[]string{""}'), true);
+});
+
+test('backend media cache relies on periodic rescans without fsnotify', async () => {
+  const mainGo = await read('main.go');
+  const goMod = await read('go.mod');
+
+  assert.equal(mainGo.includes('fsnotify'), false);
+  assert.equal(goMod.includes('github.com/fsnotify/fsnotify'), false);
+  assert.equal(mainGo.includes('10 * time.Minute'), true);
 });
 
 test('home navigation refreshes only on the home route and resumes from likes routes', async () => {
